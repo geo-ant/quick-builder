@@ -3,12 +3,13 @@ use std::fmt::Display;
 use quick_builder_derive::QuickBuilder;
 
 #[derive(Debug, QuickBuilder)]
-pub struct Foo<T1: Default, T2>
+pub struct Foo<'a, T1: Default, T2>
 where
     T2: Display,
 {
     x: T1,
     y: T2,
+    r: &'a T2,
 }
 
 unsafe fn foo() {
