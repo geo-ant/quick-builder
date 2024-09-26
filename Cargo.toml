@@ -1,0 +1,3 @@
+[workspace]
+members = ["quick-builder-derive", "quick-builder"]
+resolver = "2"
