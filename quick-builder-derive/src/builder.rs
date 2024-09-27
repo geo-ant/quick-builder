@@ -74,7 +74,7 @@ pub fn make_builder(
     let initial_builder_type = builder_type_with_index(-1);
 
     // this is for defining the builder struct,
-    // implementing Default on it
+    // implementing a constructor on it
     // and defining the Builder method on the original struct
     let builder_struct_tokens = quote! {
          // note we must stick our generic parameter at the end, because otherwise
@@ -87,8 +87,8 @@ pub fn make_builder(
              state: #builder_state_ident #original_ty_generics,
          }
 
-         impl #original_impl_generics Default for #initial_builder_type #original_where_clause {
-            fn default() -> Self {
+         impl #original_impl_generics #initial_builder_type #original_where_clause {
+            pub fn new() -> Self {
                 Self { state: #builder_state_ident::#original_ty_generics::uninit()}
             }
          }
@@ -97,7 +97,7 @@ pub fn make_builder(
              #original_where_clause {
                  //@todo make this visibility configurable
                  #builder_vis fn builder() -> #initial_builder_type {
-                     Default::default()
+                     #builder_ident::new()
                  }
          }
     };
