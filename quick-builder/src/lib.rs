@@ -15,5 +15,8 @@ where
 }
 
 unsafe fn foo() {
-    let f: Foo<i32, u32> = __FooBuilderState::uninit().assume_init();
+    let f: Foo<i32, u32> = Foo::builder().set_x(1).set_y(2).set_r(&1).build();
+    let f2 = Foo::builder().set_x(1.).set_y(2).set_r(&1).build();
+    let f3 = Foo::builder().set_x(1.).set_y(2).set_r(&1).build();
+    let f4 = Foo::builder().set_x(1.).set_y(2.).set_r(&3f32).build();
 }
