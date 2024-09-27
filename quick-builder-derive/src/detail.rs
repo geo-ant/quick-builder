@@ -5,6 +5,7 @@ use crate::error::CompileError;
 
 /// this is syn's DeriveInput where we know that the contained data is a struct
 /// and not anything else
+#[allow(dead_code)]
 pub struct StructDeriveInput {
     pub attrs: Vec<Attribute>,
     pub vis: Visibility,

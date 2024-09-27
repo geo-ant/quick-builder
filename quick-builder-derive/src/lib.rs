@@ -1,7 +1,7 @@
 use builder::make_builder;
 use builder_state::make_builder_state;
 use detail::StructDeriveInput;
-use quote::{format_ident, quote};
+use quote::quote;
 use syn::{parse_macro_input, DeriveInput};
 
 mod builder;
@@ -31,11 +31,9 @@ pub fn quick_builder(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
     let builder = try2!(make_builder(&input, &builder_state));
 
     quote! {
-
         #builder_state
 
         #builder
-
     }
     .into()
 }

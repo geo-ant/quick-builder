@@ -1,7 +1,6 @@
 use crate::detail::StructDeriveInput;
 use crate::error::CompileError;
 use quote::{format_ident, quote, ToTokens};
-use syn::{ImplGenerics, TypeGenerics};
 
 /// see the documentation for the function below
 pub struct BuilderState {

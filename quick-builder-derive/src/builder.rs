@@ -1,6 +1,9 @@
+use std::default;
+
 use crate::{builder_state::BuilderState, detail::StructDeriveInput, error::CompileError};
 use quote::{format_ident, quote, ToTokens};
-use syn::{ext::IdentExt, token::Pub, Ident, Visibility};
+use special_generics::TypeGenericsWithoutAngleBrackets;
+use syn::Fields;
 
 mod special_generics;
 
@@ -41,21 +44,37 @@ pub fn make_builder(
     let (original_impl_generics, original_ty_generics, original_where_clause) =
         input.generics.split_for_impl();
 
-    // let id = format_ident!("foo");
+    // this is like the impl generics but without the enclosing <...>
+    let struct_generics = &input.generics.params;
+    let type_generics_without_angle_brackets =
+        TypeGenericsWithoutAngleBrackets::from(&input.generics);
+
+    let field_index_type = FieldIndexType::new(&input.data.fields)?;
+
+    // @todo make this visibility configurable
+    let builder_vis = syn::token::Pub::default();
 
     let builder_struct_tokens = quote! {
-         // @todo make this visibility configurable
-         // pub struct #builder_ident <const __INIT_FIELDS_COUNT: usize, #struct_generics> #where_clause{
-         //     state: #state_ident #ty_generics,
-         // }
+         // note we must stick our generic parameter at the end, because otherwise
+         // the compiler might complain that lifetimes have to go first.
+         // the __INIT_FIELD_INDEX points to the
+         #builder_vis struct #builder_ident <#struct_generics, const __INIT_FIELD_INDEX: #field_index_type> #original_where_clause{
+             state: #state_ident #original_ty_generics,
+         }
 
-         // // impl #impl_generics Default for #builder_ident <0, #struct_generics> #where_clause {
-         // //    fn default() -> Self {
-         // //        todo!()
-         // //        // Self { state: #state_ident #ty_generics ::uninit()}
-         // //    }
+         impl #original_impl_generics Default for #builder_ident <#type_generics_without_angle_brackets,-1> #original_where_clause {
+            fn default() -> Self {
+                Self { state: #state_ident::#original_ty_generics::uninit()}
+            }
+         }
 
-         // }
+         impl #original_impl_generics #original_ident #original_ty_generics
+             #original_where_clause {
+                 //@todo make this visibility configurable
+                 #builder_vis fn builder() -> #builder_ident <#type_generics_without_angle_brackets,-1> {
+                     Default::default()
+                 }
+         }
     };
 
     let fields = match input.data.fields {
@@ -78,4 +97,33 @@ pub fn make_builder(
         ident: builder_ident,
         tokens,
     })
+}
+
+#[derive(Copy, Clone, PartialEq, Eq)]
+/// the type of the const generic field index
+pub enum FieldIndexType {
+    I64,
+}
+
+impl FieldIndexType {
+    /// construct a new field index generic type that takes the number of
+    /// fields into account.
+    pub fn new(fields: &Fields) -> Result<Self, CompileError> {
+        if (i64::MAX as usize) < fields.len() {
+            return Err(CompileError::new_spanned(
+                &fields,
+                "QuickBuilder: too many fields in structure",
+            ));
+        }
+        Ok(Self::I64)
+    }
+}
+
+impl ToTokens for FieldIndexType {
+    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+        match self {
+            FieldIndexType::I64 => quote! { i64 },
+        }
+        .to_tokens(tokens)
+    }
 }
