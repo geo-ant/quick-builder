@@ -19,4 +19,5 @@ unsafe fn foo() {
     let f2 = Foo::builder().set_x(1.).set_y(2).set_r(&1).build();
     let f3 = Foo::builder().set_x(1.).set_y(2).set_r(&1).build();
     let f4 = Foo::builder().set_x(1.).set_y(2.).set_r(&3f32).build();
+    let f5 = Foo::builder().set_x(1.).set_y(2).set_r(&3u8).build();
 }

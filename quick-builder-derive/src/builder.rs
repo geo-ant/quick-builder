@@ -68,7 +68,7 @@ pub fn make_builder(
     // helper function to generate the builder type with a given index, e.g
     // FooBuilder<'a,T1,T2,idx>
     let builder_type_with_index = |idx: i64| {
-        quote! {#builder_ident <#type_generics_without_angle_brackets, #idx>}
+        quote! {#builder_ident <#type_generics_without_angle_brackets, __BuilderConstant<#idx>>}
     };
 
     let initial_builder_type = builder_type_with_index(-1);
@@ -83,13 +83,17 @@ pub fn make_builder(
          // by the appropriate method call. The index is ZERO(0)-BASED, so the first
          // field is at index 0. The builder starts at index -1, which indicates no
          // fields have been initialized.
-         #builder_vis struct #builder_ident <#struct_generics, const __INIT_FIELD_INDEX: #field_index_type> #original_where_clause{
+         #builder_vis struct #builder_ident <#struct_generics, __Initialized_Fields> #original_where_clause{
              state: #builder_state_ident #original_ty_generics,
+             phantom: std::marker::PhantomData::<__Initialized_Fields>,
          }
 
          impl #original_impl_generics #initial_builder_type #original_where_clause {
             pub fn new() -> Self {
-                Self { state: #builder_state_ident::#original_ty_generics::uninit()}
+                Self {
+                    state: #builder_state_ident::#original_ty_generics::uninit(),
+                    phantom: Default::default(),
+                }
             }
          }
 
@@ -100,6 +104,8 @@ pub fn make_builder(
                      #builder_ident::new()
                  }
          }
+
+         struct __BuilderConstant<const IDX:i64>{}
     };
 
     // now we construct the chain of setter function on the builder, where
@@ -122,7 +128,7 @@ pub fn make_builder(
             fn #setter_fn (self, #field_ident : #field_type) -> #next_builder_type {
                 let mut state = self.state;
                 state.#field_ident.write(#field_ident);
-                #builder_ident { state }
+                #builder_ident { state, phantom:Default::default() }
             }
          }
 
