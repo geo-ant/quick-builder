@@ -45,6 +45,13 @@ pub fn make_builder(
         ));
     }
 
+    fields.iter().for_each(|field| {
+        println!("{}", field.ident.as_ref().unwrap());
+        field.attrs.iter().for_each(|attr| {
+            println!("{:#?}", attr);
+        });
+    });
+
     // these are the generics for the original type and the internal state
     // This is not the same as for the builder, since the builder has one additional
     // const-generic parameter which is the index of the last initialized field.

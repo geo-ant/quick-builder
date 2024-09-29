@@ -75,12 +75,6 @@ pub fn make_builder_state(input: &StructDeriveInput) -> Result<BuilderState, Com
         _ => unreachable!("struct can only have named fields"),
     };
 
-    let validators = fields.iter().for_each(|f| {
-        println!("{}:", f.ident.as_ref().unwrap());
-
-        f.attrs.iter().for_each(|at| println!("\t{:#?}", at));
-    });
-
     // Create new fields by wrapping each type in MaybeUninit<T>
     let maybe_uninit_fields = fields.iter().map(|field| {
         let field_ident = &field.ident;
