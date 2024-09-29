@@ -1,7 +1,5 @@
-use std::default;
-
 use crate::{builder_state::BuilderState, detail::StructDeriveInput, error::CompileError};
-use quote::{format_ident, quote, ToTokens, TokenStreamExt};
+use quote::{format_ident, quote, ToTokens};
 use special_generics::TypeGenericsWithoutAngleBrackets;
 use syn::Fields;
 

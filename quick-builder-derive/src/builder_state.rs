@@ -80,7 +80,7 @@ pub fn make_builder_state(input: &StructDeriveInput) -> Result<BuilderState, Com
         let field_ident = &field.ident;
         let field_ty = &field.ty;
         quote! {
-            #field_ident: core::mem::MaybeUninit<#field_ty>
+            #field_ident: ::core::mem::MaybeUninit<#field_ty>
         }
     });
 
@@ -89,7 +89,7 @@ pub fn make_builder_state(input: &StructDeriveInput) -> Result<BuilderState, Com
         let field_ident = &field.ident;
         let field_ty = &field.ty;
         quote! {
-            #field_ident: core::mem::MaybeUninit::<#field_ty>::uninit()
+            #field_ident: ::core::mem::MaybeUninit::<#field_ty>::uninit()
         }
     });
     // make all fields uninitialized for construction
@@ -116,7 +116,6 @@ pub fn make_builder_state(input: &StructDeriveInput) -> Result<BuilderState, Com
                 Self {
                     #(#field_initializers_uninit),*
                 }
-
             }
 
             // assumes all fields are initialized and returns an

@@ -9,12 +9,22 @@ pub struct Foo<'a, T1: Default, T2>
 where
     T2: Display,
 {
+    #[validate(|f|!f.is_nan())]
+    f: f64,
     x: T1,
     y: T2,
     r: &'a T2,
 }
 
-unsafe fn foo() {
+fn validation(f: f64) -> bool {
+    !f.is_nan()
+}
+
+fn foo() {
+    let f = validation;
+
+    if !(f)(1.) {}
+
     // let f: Foo<i32, u32> = Foo::builder().set_x(1).set_y(2).set_r(&1).build();
     // let f2 = Foo::builder().set_x(1.).set_y(2).set_r(&1).build();
     // let f3 = Foo::builder().set_x(1.).set_y(2).set_r(&1).build();
@@ -25,6 +35,5 @@ unsafe fn foo() {
     //     .set_r(&3)
     //     .build();
     // let f6 = Foo::builder().set_x(1.).set_y(3.).set_r(&3.).build();
-    let f7 = Foo::builder().x(1.).y(1.).r(&3.).build();
-    let f8 = Foo::builder().x(2.).y(3.).r(&3.).build();
+    let f7 = Foo::builder().f(1.).x(4).y(1.).r(&3.).build();
 }
