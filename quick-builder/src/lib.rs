@@ -11,7 +11,9 @@ where
 {
     #[validate(|f|!f.is_nan())]
     f: f64,
+    #[validate(validation)]
     x: T1,
+    #[validate(|f|{f= 1.0})]
     y: T2,
     r: &'a T2,
 }

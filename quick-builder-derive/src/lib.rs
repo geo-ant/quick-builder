@@ -8,6 +8,7 @@ mod builder;
 mod builder_state;
 mod detail;
 mod error;
+mod validation;
 
 /// helper macro for returning compile errors even in functions which don't return
 /// Result<T,E>, but instead return token streams.
