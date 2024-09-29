@@ -15,8 +15,16 @@ where
 }
 
 unsafe fn foo() {
-    let f: Foo<i32, u32> = Foo::builder().set_x(1).set_y(2).set_r(&1).build();
-    let f2 = Foo::builder().set_x(1.).set_y(2).set_r(&1).build();
-    let f3 = Foo::builder().set_x(1.).set_y(2).set_r(&1).build();
-    let f4 = Foo::builder().set_x(1.).set_y(2.).set_r(&3f32).build();
+    // let f: Foo<i32, u32> = Foo::builder().set_x(1).set_y(2).set_r(&1).build();
+    // let f2 = Foo::builder().set_x(1.).set_y(2).set_r(&1).build();
+    // let f3 = Foo::builder().set_x(1.).set_y(2).set_r(&1).build();
+    // let f4 = Foo::builder().set_x(1.).set_y(2.).set_r(&3f32).build();
+    // let f5 = Foo::<i32, i32>::builder()
+    //     .set_x(1)
+    //     .set_y(2)
+    //     .set_r(&3)
+    //     .build();
+    // let f6 = Foo::builder().set_x(1.).set_y(3.).set_r(&3.).build();
+    let f7 = Foo::builder().x(1.).y(1.).r(&3.).build();
+    let f8 = Foo::builder().x(2.).y(3.).r(&3.).build();
 }

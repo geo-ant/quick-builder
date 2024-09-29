@@ -65,13 +65,13 @@ pub fn make_builder(
     // @todo make this visibility configurable
     let builder_vis = syn::token::Pub::default();
 
-    // helper function to generate the builder type with a given index, e.g
-    // FooBuilder<'a,T1,T2,idx>
-    let builder_type_with_index = |idx: i64| {
-        quote! {#builder_ident <#type_generics_without_angle_brackets, #idx>}
+    // helper function to generate the builder type with a given count of
+    // initialized fields, e.g FooBuilder<'a,T1,T2,2>
+    let builder_type_with_count = |count: usize| {
+        quote! {#builder_ident <#type_generics_without_angle_brackets, #count>}
     };
 
-    let initial_builder_type = builder_type_with_index(-1);
+    let initial_builder_type = builder_type_with_count(0);
 
     // this is for defining the builder struct,
     // implementing a constructor on it
@@ -79,11 +79,11 @@ pub fn make_builder(
     let builder_struct_tokens = quote! {
          // note we must stick our generic parameter at the end, because otherwise
          // the compiler might complain that lifetimes have to go first.
-         // the __INIT_FIELD_INDEX points to the index of the field that has been initialized
-         // by the appropriate method call. The index is ZERO(0)-BASED, so the first
-         // field is at index 0. The builder starts at index -1, which indicates no
+         // the __INIT_FIELD_COUNT tells us the number of fields that have been
+         // initialized. Initialized happens top to bottom in order of declaration.
+         // Thus, the builder starts at count 0, which indicates no
          // fields have been initialized.
-         #builder_vis struct #builder_ident <#struct_generics, const __INIT_FIELD_INDEX: #field_index_type> #original_where_clause{
+         #builder_vis struct #builder_ident <#struct_generics, const __INIT_FIELD_COUNT: #field_index_type> #original_where_clause{
              state: #builder_state_ident #original_ty_generics,
          }
 
@@ -103,17 +103,14 @@ pub fn make_builder(
     };
 
     // now we construct the chain of setter function on the builder, where
-    // we go from __INIT_FIELD_INDEX i-1 to index i by setting the field at
-    // index i. That means that we transitively know that if the field at
-    // index i is set, all fields at indices 0,...,i have been set.
-
-    let setters = fields.iter().enumerate().map(|(idx, field)| {
-        let previous_builder_type = builder_type_with_index(idx as i64 - 1);
-        let next_builder_type = builder_type_with_index(idx as i64);
-        let setter_fn = field
-            .ident
-            .as_ref()
-            .map(|ident| format_ident!("set_{}", ident));
+    // we go from __INIT_FIELD_COUNT i to count i+1 by setting the field at
+    // index i (starting with index 0, in order of declaration). That means that
+    // we transitively know that if the field at index i is set,
+    // all fields at indices 0,...,i have been set.
+    let setters = fields.iter().enumerate().map(|(count, field)| {
+        let previous_builder_type = builder_type_with_count(count);
+        let next_builder_type = builder_type_with_count(count + 1);
+        let setter_fn = field.ident.as_ref().map(|ident| format_ident!("{}", ident));
         let field_ident = &field.ident;
         let field_type = &field.ty;
         let setter_tokens = quote! {
@@ -132,7 +129,7 @@ pub fn make_builder(
 
     // this is to generate the build method on the final form of the builder where we
     // know that all fields have been initialized.
-    let final_builder = builder_type_with_index((fields.len() - 1) as _);
+    let final_builder = builder_type_with_count(fields.len());
     let builder_tokens = quote! {
          impl #original_impl_generics #final_builder #original_where_clause {
             fn build(self) -> #original_struct_ident #original_ty_generics {
@@ -160,8 +157,14 @@ pub fn make_builder(
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 /// the type of the const generic field index
+//@note(geo) I noticed something interesting, since I was previously allowing
+// i64 as the type and had negative numbers for the associated constant. As soon
+// as I used negative numbers, the type deduction goes out of the window for
+// rust-analyzer (the compiler itself is fine) and the autocompletion will
+// suggest methods that aren't even implemented for a specific generic builder
+// instance.
 pub enum FieldIndexType {
-    I64,
+    Usize,
 }
 
 impl FieldIndexType {
@@ -174,14 +177,14 @@ impl FieldIndexType {
                 "QuickBuilder: too many fields in structure",
             ));
         }
-        Ok(Self::I64)
+        Ok(Self::Usize)
     }
 }
 
 impl ToTokens for FieldIndexType {
     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
         match self {
-            FieldIndexType::I64 => quote! { i64 },
+            FieldIndexType::Usize => quote! { usize },
         }
         .to_tokens(tokens)
     }
