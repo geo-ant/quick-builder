@@ -2,25 +2,17 @@ use crate::{
     builder_state::BuilderState, detail::StructDeriveInput, error::CompileError,
     validation::ValidateAttribute,
 };
-use quote::{format_ident, quote, ToTokens};
+use proc_macro2::Span;
+use quote::{format_ident, quote, quote_spanned, ToTokens};
 use special_generics::TypeGenericsWithoutAngleBrackets;
-use syn::Fields;
+use syn::{spanned::Spanned, Fields};
 
 mod special_generics;
 
 /// the builder struct and its impl blocks
 pub struct Builder {
-    /// the name of the builder itself
-    ident: proc_macro2::Ident,
     /// the tokens for the struct and the implementation
     tokens: proc_macro2::TokenStream,
-}
-
-impl Builder {
-    /// get the name of the struct itself
-    pub fn ident(&self) -> &proc_macro2::Ident {
-        &self.ident
-    }
 }
 
 impl ToTokens for Builder {
@@ -55,14 +47,16 @@ pub fn make_builder(
     //     });
     // });
 
-    //@todo don't collect, leave as iterator
-    let v = fields
+    // the validate attribut on the struct itself, if any
+    let struct_validate_attribute = ValidateAttribute::new(&input.attrs)?;
+
+    // an iterator over the validate attributes (if any) of the individual fields.
+    // Errors should be passed on as compile errors.
+    // there is a 1-to-1 correspondence between the fields and the items in this iterator.
+    let field_validate_attributes = fields
         .iter()
-        .map(|f| ValidateAttribute::try_from_attributes(&f.attrs))
-        .collect::<Vec<_>>();
-    println!("{:#?}", v);
-    let r: Result<Vec<_>, _> = v.into_iter().collect();
-    r?;
+        .map(|f| ValidateAttribute::new(&f.attrs))
+        .collect::<Result<Vec<_>, _>>()?;
 
     // these are the generics for the original type and the internal state
     // This is not the same as for the builder, since the builder has one additional
@@ -146,17 +140,112 @@ pub fn make_builder(
 
     // this is to generate the build method on the final form of the builder where we
     // know that all fields have been initialized.
+    // Also if we have no validate-attributes either on the struct itself or
+    // on any of the fields, we return the type `Foo` from `FooBuilder`,
+    // otherwise we return an `Option<Foo>` that fails if either of the
+    // validate expressions fails.
     let final_builder = builder_type_with_count(fields.len());
-    let builder_tokens = quote! {
-         impl #original_impl_generics #final_builder #original_where_clause {
-            fn build(self) -> #original_struct_ident #original_ty_generics {
-                // Safety: this is safe because we know all fields have been
-                // initialized at this point.
-                let finished = unsafe {self.state.assume_init()};
-                finished
+
+    let builder_tokens;
+    let has_validators = struct_validate_attribute.is_some()
+        || field_validate_attributes.iter().any(|val| val.is_some());
+    if !has_validators {
+        // this is the simple case: if no validation is performed, we just return
+        // the struct itself
+        builder_tokens = quote! {
+             impl #original_impl_generics #final_builder #original_where_clause {
+                fn build(self) -> #original_struct_ident #original_ty_generics {
+                    // Safety: this is safe because we know all fields have been
+                    // initialized at this point.
+                    let finished = unsafe {self.state.assume_init()};
+                    finished
+                }
+             }
+        };
+    } else {
+        // in case we have validators, we return an Optional that only contains
+        // the value if all validators pass successfully.
+
+        let finished_ident = quote! { finished };
+
+        // the validator logic to be pasted inside the build function
+        let field_validator_logic = fields
+            .iter()
+            .zip(field_validate_attributes.iter())
+            .flat_map(|(field, maybe_validator)| {
+                let Some(validator) = maybe_validator else {
+                    return None;
+                };
+                let field_ident = field
+                    .ident
+                    .as_ref()
+                    .expect("named fields must have identifiers");
+                // let validator_binding = format_ident!("{}_validator", field_ident);
+
+                let validator_expression = validator.expression();
+
+                let span = validator.expression_span();
+                // this is & for all types except references and pointers which
+                // are directly passed to the validators. All other types are
+                // passed as references.
+                let ref_qualifier = match field.ty {
+                    syn::Type::Ptr(_) => None,
+                    syn::Type::Reference(_) => None,
+                    _ => Some(syn::token::And {
+                        spans: [Span::call_site()],
+                    }),
+                };
+
+                Some(quote_spanned! {span=>
+
+                    // this is a trick to make sure the correct type gets
+                    // deduced on the closures
+                    let is_validated : bool = __is_valid(#ref_qualifier #finished_ident . #field_ident,#validator_expression);
+                    // let is_validated = Self::__is_valid(#ref_qualifier #finished_ident . # field_ident,validator); 
+                    if !is_validated {
+                        return None;
+                    }
+
+                })
+            });
+
+        let struct_validator_logic = struct_validate_attribute.map(|validator| {
+            let validator_expression = validator.expression();
+            let span = validator_expression.span();
+            quote_spanned! {span=>
+                let is_validated : bool = __is_valid(& #finished_ident,#validator_expression);
+                if !is_validated {
+                    return None;
+                }
             }
-         }
-    };
+        });
+
+        builder_tokens = quote! {
+             impl #original_impl_generics #final_builder #original_where_clause {
+
+
+                fn build(self) -> ::core::option::Option<#original_struct_ident #original_ty_generics> {
+                    // this function helps us with making sure the arguments
+                    // of the closures get deduced correctly
+                    #[inline(always)]
+                    fn __is_valid<__T,__F>(val: &__T, func: __F) -> bool
+                    where for<'__life> __F: FnOnce(&__T) -> bool {
+                        (func)(val)
+                    }
+                    // Safety: this is safe because we know all fields have been
+                    // initialized at this point.
+                    // finished structure, this still has to undergo validation
+                    let #finished_ident = unsafe {self.state.assume_init()};
+
+                    #(#field_validator_logic)*
+
+                    #struct_validator_logic
+
+                    Some(#finished_ident)
+                }
+             }
+        };
+    }
 
     let tokens = quote! {
         #builder_struct_tokens
@@ -166,10 +255,7 @@ pub fn make_builder(
         #builder_tokens
     };
 
-    Ok(Builder {
-        ident: builder_ident,
-        tokens,
-    })
+    Ok(Builder { tokens })
 }
 
 #[derive(Copy, Clone, PartialEq, Eq)]

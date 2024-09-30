@@ -4,11 +4,9 @@
 //! with one argument returning a bool. The argument must be of type
 //! `&Foo` where `Foo` is the structure for which we created the builder.
 
+use proc_macro2::Span;
 use quote::ToTokens;
-use syn::{
-    parse::{Parse, ParseBuffer},
-    AttrStyle, Attribute, Expr, ExprClosure, Field, Meta, Path,
-};
+use syn::{spanned::Spanned, Attribute, ExprClosure, Meta, Path};
 
 pub const VALIDATE_ATTR: &str = "validate";
 
@@ -26,6 +24,10 @@ impl ValidateAttribute {
     pub fn expression<'a>(&'a self) -> impl ToTokens + 'a {
         &self.expression
     }
+
+    pub fn expression_span(&self) -> Span {
+        self.expression.full_span()
+    }
 }
 
 impl ValidateAttribute {
@@ -34,7 +36,7 @@ impl ValidateAttribute {
     /// The option has None value if the field does not have a validate attribute,
     /// otherwise it is Some(...). If an error occurs during parsing, or if more than
     /// one validate attribute is present, returns an error.
-    pub fn try_from_attributes(attributes: &[Attribute]) -> Result<Option<Self>, CompileError> {
+    pub fn new(attributes: &[Attribute]) -> Result<Option<Self>, CompileError> {
         // helper predicate that helps us find the validate attribute
         let is_validate_attribute = |attr: &Attribute| match attr.meta {
             Meta::Path(ref path) => {
@@ -90,6 +92,15 @@ enum ValidationExpression {
     /// a path to a function is given
     /// (there's nothing more about this we can verify at macro expansion time)
     Path(Path),
+}
+
+impl ValidationExpression {
+    fn full_span(&self) -> proc_macro2::Span {
+        match self {
+            ValidationExpression::Closure(closure) => closure.body.span(),
+            ValidationExpression::Path(path) => path.span(),
+        }
+    }
 }
 
 impl ToTokens for ValidationExpression {
