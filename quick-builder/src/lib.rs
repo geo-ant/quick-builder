@@ -40,11 +40,12 @@ fn foo() {
     //     .build();
     // let f6 = Foo::builder().set_x(1.).set_y(3.).set_r(&3.).build();
     // let f7 = Foo::builder().f(1.).x(4).y(1.).r(&3.).build().unwrap();
+    let mut float = f64::NAN;
     let f8 = Foo::builder()
         .f(1.)
         .x(2.)
         .y(4.)
-        .r(&mut f64::NAN)
+        .r(&mut float)
         .build()
         .unwrap();
 }
