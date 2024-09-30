@@ -4,6 +4,7 @@
 //! with one argument returning a bool. The argument must be of type
 //! `&Foo` where `Foo` is the structure for which we created the builder.
 
+use quote::ToTokens;
 use syn::{
     parse::{Parse, ParseBuffer},
     AttrStyle, Attribute, Expr, ExprClosure, Field, Meta, Path,
@@ -17,6 +18,14 @@ use crate::error::CompileError;
 pub struct ValidateAttribute {
     /// the expression in brackets in the validation attribute
     expression: ValidationExpression,
+}
+
+impl ValidateAttribute {
+    /// get the expression for validation as tokens. This is just the function name
+    /// or the code of the closure inside the attribute braces. No additional magic has been performed.
+    pub fn expression<'a>(&'a self) -> impl ToTokens + 'a {
+        &self.expression
+    }
 }
 
 impl ValidateAttribute {
@@ -81,6 +90,15 @@ enum ValidationExpression {
     /// a path to a function is given
     /// (there's nothing more about this we can verify at macro expansion time)
     Path(Path),
+}
+
+impl ToTokens for ValidationExpression {
+    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+        match self {
+            ValidationExpression::Closure(closure) => closure.to_tokens(tokens),
+            ValidationExpression::Path(path) => path.to_tokens(tokens),
+        }
+    }
 }
 
 impl TryFrom<&Meta> for ValidationExpression {

@@ -15,7 +15,7 @@ where
     x: T1,
     #[validate(|f|{f= 1.0})]
     y: T2,
-    // #[validate]
+    #[validate(validation)]
     r: &'a T2,
 }
 
@@ -39,4 +39,5 @@ fn foo() {
     //     .build();
     // let f6 = Foo::builder().set_x(1.).set_y(3.).set_r(&3.).build();
     let f7 = Foo::builder().f(1.).x(4).y(1.).r(&3.).build();
+    let f8 = Foo::builder().f(1.).x(2.).y(4.).r(&3.).build();
 }
