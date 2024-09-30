@@ -13,6 +13,7 @@ pub const VALIDATE_ATTR: &str = "validate";
 
 use crate::error::CompileError;
 
+#[derive(Debug)]
 pub struct ValidateAttribute {
     /// the expression in brackets in the validation attribute
     expression: ValidationExpression,
@@ -27,7 +28,9 @@ impl ValidateAttribute {
     pub fn try_from_attributes(attributes: &[Attribute]) -> Result<Option<Self>, CompileError> {
         // helper predicate that helps us find the validate attribute
         let is_validate_attribute = |attr: &Attribute| match attr.meta {
-            Meta::Path(_) => false,
+            Meta::Path(ref path) => {
+                path.segments.len() == 1 && path.segments[0].ident == VALIDATE_ATTR
+            }
             Meta::List(ref list) => {
                 list.path.segments.len() == 1 && list.path.segments[0].ident == VALIDATE_ATTR
             }
@@ -70,6 +73,7 @@ impl ValidateAttribute {
 }
 
 /// the expression for validation
+#[derive(Debug)]
 enum ValidationExpression {
     /// a closure is defined
     /// (there are some aspects that we can verify, but not all)
@@ -83,11 +87,25 @@ impl TryFrom<&Meta> for ValidationExpression {
     type Error = CompileError;
     fn try_from(meta: &Meta) -> Result<Self, CompileError> {
         match meta {
-            Meta::Path(path) => Ok(Self::Path(path.clone())),
+            // this means that just the attribute, without the braces has been given
+            // we must return an error. Meaning just #[validate]. If a path (e.g.
+            // function name is given in braces, like #[validate(my_fun)], this
+            // is handled in the case below.
+            Meta::Path(path) => Err(CompileError::new_spanned(
+                path,
+                "attribute requires closure or function name for validation in braces",
+            )),
             Meta::List(list) => {
                 // first try parsing this as a path
                 if let Some(path) = syn::parse::<Path>(list.tokens.clone().into()).ok() {
-                    return Ok(Self::Path(path));
+                    if !path.segments.is_empty() {
+                        return Ok(Self::Path(path));
+                    } else {
+                        return Err(CompileError::new_spanned(
+                            path,
+                            "validation argument must be given a closure or function name",
+                        ));
+                    }
                 }
                 // otherwise this must be a closure
                 if let Some(closure) = syn::parse::<ExprClosure>(list.tokens.clone().into()).ok() {
@@ -106,7 +124,7 @@ impl TryFrom<&Meta> for ValidationExpression {
                         ))
                     } else if closure.inputs.len() != 1 {
                         Err(CompileError::new_spanned(
-                            &closure.inputs,
+                            &closure,
                             "validation closure must have exactly one argument",
                         ))
                     } else {

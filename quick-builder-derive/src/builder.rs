@@ -1,4 +1,7 @@
-use crate::{builder_state::BuilderState, detail::StructDeriveInput, error::CompileError};
+use crate::{
+    builder_state::BuilderState, detail::StructDeriveInput, error::CompileError,
+    validation::ValidateAttribute,
+};
 use quote::{format_ident, quote, ToTokens};
 use special_generics::TypeGenericsWithoutAngleBrackets;
 use syn::Fields;
@@ -45,12 +48,21 @@ pub fn make_builder(
         ));
     }
 
-    fields.iter().for_each(|field| {
-        println!("{}", field.ident.as_ref().unwrap());
-        field.attrs.iter().for_each(|attr| {
-            println!("{:#?}", attr);
-        });
-    });
+    // fields.iter().for_each(|field| {
+    //     println!("{}", field.ident.as_ref().unwrap());
+    //     field.attrs.iter().for_each(|attr| {
+    //         println!("{:?}", attr);
+    //     });
+    // });
+
+    //@todo don't collect, leave as iterator
+    let v = fields
+        .iter()
+        .map(|f| ValidateAttribute::try_from_attributes(&f.attrs))
+        .collect::<Vec<_>>();
+    println!("{:#?}", v);
+    let r: Result<Vec<_>, _> = v.into_iter().collect();
+    r?;
 
     // these are the generics for the original type and the internal state
     // This is not the same as for the builder, since the builder has one additional

@@ -5,6 +5,7 @@ use proc_macro2::Span;
 use quote::ToTokens;
 
 /// bit nicer interface for compile errors
+#[derive(Debug)]
 pub struct CompileError {
     inner: syn::Error,
 }
