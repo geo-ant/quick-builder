@@ -227,6 +227,7 @@ pub fn make_builder(
                 fn build(self) -> ::core::option::Option<#original_struct_ident #original_ty_generics> {
                     // this function helps us with making sure the arguments
                     // of the closures get deduced correctly
+                    // it is used above.
                     #[inline(always)]
                     fn __is_valid<__T,__F>(val: &__T, func: __F) -> bool
                     where for<'__life> __F: FnOnce(&__T) -> bool {
