@@ -1,22 +1,22 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
 
-use std::{fmt::Display, marker::PhantomData};
+use std::fmt::Display;
 
 use quick_builder_derive::QuickBuilder;
 
 #[derive(Debug, QuickBuilder)]
-// #[validate(|me|me.f > *me.r)]
+#[validate(|me|me.f > *me.r)]
 pub struct Foo<'a, T1: Default, T2>
 where
     T2: Display,
 {
-    // #[validate(|f|!f.is_nan()||!f.is_finite())]
+    #[validate(|f|!f.is_nan()||!f.is_finite())]
     f: f64,
     x: T1,
-    // #[validate(|f|true)]
+    #[validate(|f|true)]
     y: T2,
-    // #[validate(validation)]
+    #[validate(validation)]
     r: &'a mut f64,
 }
 
@@ -40,15 +40,15 @@ fn foo() {
     // //     .build();
     // // let f6 = Foo::builder().set_x(1.).set_y(3.).set_r(&3.).build();
     // // let f7 = Foo::builder().f(1.).x(4).y(1.).r(&3.).build().unwrap();
-    // let mut float = f64::NAN;
-    // let f8 = Foo::builder()
-    //     .f(1.)
-    //     .x(2.)
-    //     .y(4.)
-    //     .r(&mut float)
-    //     .build()
-    //     .unwrap();
-    // let f9 = Foo::builder().f(1.).x(3).y(10.).r(&mut float).build();
+    let mut float = f64::NAN;
+    let f8 = Foo::builder()
+        .f(1.)
+        .x(2.)
+        .y(4.)
+        .r(&mut float)
+        .build()
+        .unwrap();
+    let f9 = Foo::builder().f(1.).x(3).y(10.).r(&mut float).build();
 
     // let f10 = Foo::builder2().f(1.).x(3.).y(11).r(&mut float);
 }
