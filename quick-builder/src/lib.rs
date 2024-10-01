@@ -12,7 +12,6 @@ where
 {
     #[validate(|f|!f.is_nan()||!f.is_finite())]
     f: f64,
-    // #[validate]
     x: T1,
     #[validate(|f|true)]
     y: T2,
@@ -48,6 +47,7 @@ fn foo() {
         .r(&mut float)
         .build()
         .unwrap();
+    let f9 = Foo::builder().f(1.).x(3).y(10.).r(&mut float).build();
 }
 
 #[inline]
