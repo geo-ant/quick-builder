@@ -1,11 +1,8 @@
-use crate::{
-    builder_state::BuilderState, detail::StructDeriveInput, error::CompileError,
-    validation::ValidateAttribute,
-};
+use crate::{detail::StructDeriveInput, error::CompileError, validation::ValidateAttribute};
 use proc_macro2::Span;
 use quote::{format_ident, quote, quote_spanned, ToTokens};
 use special_generics::TypeGenericsWithoutAngleBrackets;
-use syn::{spanned::Spanned, Fields};
+use syn::{spanned::Spanned, Index};
 
 mod special_generics;
 
@@ -21,13 +18,10 @@ impl ToTokens for Builder {
     }
 }
 
-pub fn make_builder(
-    input: &StructDeriveInput,
-    state: &BuilderState,
-) -> Result<Builder, CompileError> {
-    let builder_state_ident = state.ident();
+pub fn make_builder(input: &StructDeriveInput) -> Result<Builder, CompileError> {
     let original_struct_ident = &input.ident;
     let builder_ident = format_ident!("{}Builder", original_struct_ident);
+    let builder_mod_ident = format_ident!("__{}Module", builder_ident);
     let fields = match input.data.fields {
         syn::Fields::Named(ref named) => &named.named,
         _ => unreachable!("struct must only have named fields"),
@@ -39,13 +33,6 @@ pub fn make_builder(
             "QuickBuilder: not possible to derive on struct without fields",
         ));
     }
-
-    // fields.iter().for_each(|field| {
-    //     println!("{}", field.ident.as_ref().unwrap());
-    //     field.attrs.iter().for_each(|attr| {
-    //         println!("{:?}", attr);
-    //     });
-    // });
 
     // the validate attribut on the struct itself, if any
     let struct_validate_attribute = ValidateAttribute::new(&input.attrs)?;
@@ -71,52 +58,63 @@ pub fn make_builder(
     let type_generics_without_angle_brackets =
         TypeGenericsWithoutAngleBrackets::from(&input.generics);
 
-    let field_index_type = FieldIndexType::new(&input.data.fields)?;
-
     // @todo make this visibility configurable
     let builder_vis = syn::token::Pub::default();
 
     // helper function to generate the builder type with a given count of
-    // initialized fields, e.g FooBuilder<'a,T1,T2,2>
+    // initialized fields, e.g FooBuilder<'a,T1,T2,()>
     let builder_type_with_count = |count: usize| {
-        quote! {#builder_ident <#type_generics_without_angle_brackets, #count>}
+        let generic_tuple_types = fields.iter().take(count).map(|f| &f.ty);
+        quote! {#builder_ident <#type_generics_without_angle_brackets, ( #(#generic_tuple_types,)* )>}
     };
 
     let initial_builder_type = builder_type_with_count(0);
+    // comma separated list of all field types
+    let all_field_types = fields.iter().map(|f| &f.ty);
 
+    let builder_state_generic = format_ident!("__{}_State", builder_ident);
     // this is for defining the builder struct,
     // implementing a constructor on it
     // and defining the Builder method on the original struct
     let builder_struct_tokens = quote! {
-         // note we must stick our generic parameter at the end, because otherwise
-         // the compiler might complain that lifetimes have to go first.
-         // the __INIT_FIELD_COUNT tells us the number of fields that have been
-         // initialized. Initialized happens top to bottom in order of declaration.
-         // Thus, the builder starts at count 0, which indicates no
-         // fields have been initialized.
-         #builder_vis struct #builder_ident <#struct_generics, const __INIT_FIELD_COUNT: #field_index_type> #original_where_clause{
-             state: #builder_state_ident #original_ty_generics,
-         }
+        // note we must stick our generic parameter at the end, because otherwise
+        // the compiler might complain that lifetimes have to go first.
+        // the __INIT_FIELD_COUNT tells us the number of fields that have been
+        // initialized. Initialized happens top to bottom in order of declaration.
+        // Thus, the builder starts at count 0, which indicates no
+        // fields have been initialized.
+        #[allow(non_camel_case_types)]
+        #builder_vis struct #builder_ident <#struct_generics, #builder_state_generic> #original_where_clause{
+            state: #builder_state_generic,
+            phantom: ::core::marker::PhantomData<( #(#all_field_types),* )>,
+        }
 
-         impl #original_impl_generics #initial_builder_type #original_where_clause {
+        impl #original_impl_generics #initial_builder_type #original_where_clause {
             pub fn new() -> Self {
-                Self { state: #builder_state_ident::#original_ty_generics::uninit()}
+                Self {
+                    state: Default::default(),
+                    phantom: Default::default(),
+                }
             }
-         }
+        }
 
-         impl #original_impl_generics #original_struct_ident #original_ty_generics
-             #original_where_clause {
-                 //@todo make this visibility configurable
-                 #builder_vis fn builder() -> #initial_builder_type {
-                     #builder_ident::new()
-                 }
-         }
+    };
+
+    let impl_build_function_on_original_struct_tokens = quote! {
+        impl #original_impl_generics #original_struct_ident #original_ty_generics
+            #original_where_clause {
+                //@todo make this visibility configurable
+                #builder_vis fn builder() -> #builder_mod_ident :: #initial_builder_type {
+                    #builder_mod_ident::#builder_ident::new()
+                }
+        }
     };
 
     // now we construct the chain of setter function on the builder, where
-    // we go from __INIT_FIELD_COUNT i to count i+1 by setting the field at
-    // index i (starting with index 0, in order of declaration). That means that
-    // we transitively know that if the field at index i is set,
+    // we go from count i to count i+1 by setting the field at
+    // index i (starting with index 0, in order of declaration).
+    // The generic tuple argument goes from () -> (TypeOfField0,) -> (TypeOfField0,TypeOfField1) ->...
+    // That means that we transitively know that if the field at index i is set,
     // all fields at indices 0,...,i have been set.
     let setters = fields.iter().enumerate().map(|(count, field)| {
         let previous_builder_type = builder_type_with_count(count);
@@ -124,13 +122,17 @@ pub fn make_builder(
         let setter_fn = field.ident.as_ref().map(|ident| format_ident!("{}", ident));
         let field_ident = &field.ident;
         let field_type = &field.ty;
+        let indices = (0..count).map(|idx| Index::from(idx));
+
         let setter_tokens = quote! {
 
          impl #original_impl_generics #previous_builder_type #original_where_clause {
-            fn #setter_fn (self, #field_ident : #field_type) -> #next_builder_type {
+            pub fn #setter_fn (self, #field_ident : #field_type) -> #next_builder_type {
                 let mut state = self.state;
-                state.#field_ident.write(#field_ident);
-                #builder_ident { state }
+                #builder_ident {
+                    state : (#( state. #indices,)* #field_ident,),
+                    phantom: Default::default(),
+                }
             }
          }
 
@@ -146,6 +148,24 @@ pub fn make_builder(
     // validate expressions fails.
     let final_builder = builder_type_with_count(fields.len());
 
+    // helper expression that produces an instance of the structure that we
+    // are building from the finished builder state
+    let finished_struct_expression = {
+        let field_names = fields
+            .iter()
+            .map(|f| f.ident.as_ref().expect("struct fields must be named"));
+        let field_names_again = field_names.clone();
+        quote! {
+            {
+                // destructure the state into the fields
+                let ( #(#field_names),*  ) = self.state;
+                #original_struct_ident {
+                    #(#field_names_again),*
+                }
+            }
+        }
+    };
+
     let builder_tokens;
     let has_validators = struct_validate_attribute.is_some()
         || field_validate_attributes.iter().any(|val| val.is_some());
@@ -157,7 +177,7 @@ pub fn make_builder(
                 fn build(self) -> #original_struct_ident #original_ty_generics {
                     // Safety: this is safe because we know all fields have been
                     // initialized at this point.
-                    let finished = unsafe {self.state.assume_init()};
+                    let finished = #finished_struct_expression;
                     finished
                 }
              }
@@ -222,74 +242,47 @@ pub fn make_builder(
 
         builder_tokens = quote! {
              impl #original_impl_generics #final_builder #original_where_clause {
+                 pub fn build(self) -> ::core::option::Option<#original_struct_ident #original_ty_generics> {
+                     // this function helps us with making sure the arguments
+                     // of the closures get deduced correctly
+                     // it is used above.
+                     #[inline(always)]
+                     fn __is_valid<__T,__F>(val: &__T, func: __F) -> bool
+                     where for<'__life> __F: FnOnce(&__T) -> bool {
+                         (func)(val)
+                     }
+                     // Safety: this is safe because we know all fields have been
+                     // initialized at this point.
+                     // finished structure, this still has to undergo validation
+                     let #finished_ident = #finished_struct_expression;
 
+                     #(#field_validator_logic)*
 
-                fn build(self) -> ::core::option::Option<#original_struct_ident #original_ty_generics> {
-                    // this function helps us with making sure the arguments
-                    // of the closures get deduced correctly
-                    // it is used above.
-                    #[inline(always)]
-                    fn __is_valid<__T,__F>(val: &__T, func: __F) -> bool
-                    where for<'__life> __F: FnOnce(&__T) -> bool {
-                        (func)(val)
-                    }
-                    // Safety: this is safe because we know all fields have been
-                    // initialized at this point.
-                    // finished structure, this still has to undergo validation
-                    let #finished_ident = unsafe {self.state.assume_init()};
+                     #struct_validator_logic
 
-                    #(#field_validator_logic)*
-
-                    #struct_validator_logic
-
-                    Some(#finished_ident)
-                }
+                     Some(#finished_ident)
+                 }
              }
         };
     }
 
     let tokens = quote! {
-        #builder_struct_tokens
 
-        #(#setters)*
+        // implement the Foo::builder() function which returns the initial FooBuilder
+        #impl_build_function_on_original_struct_tokens
 
-        #builder_tokens
+        // the actual FooBuilder data structures and logic are namespaced in a
+        // module so that no internal state can leak out
+        #[allow(non_snake_case)]
+        #builder_vis mod #builder_mod_ident {
+            use super::*;
+            #builder_struct_tokens
+
+            #(#setters)*
+
+            #builder_tokens
+        }
     };
 
     Ok(Builder { tokens })
-}
-
-#[derive(Copy, Clone, PartialEq, Eq)]
-/// the type of the const generic field index
-//@note(geo) I noticed something interesting, since I was previously allowing
-// i64 as the type and had negative numbers for the associated constant. As soon
-// as I used negative numbers, the type deduction goes out of the window for
-// rust-analyzer (the compiler itself is fine) and the autocompletion will
-// suggest methods that aren't even implemented for a specific generic builder
-// instance.
-pub enum FieldIndexType {
-    Usize,
-}
-
-impl FieldIndexType {
-    /// construct a new field index generic type that takes the number of
-    /// fields into account.
-    pub fn new(fields: &Fields) -> Result<Self, CompileError> {
-        if (i64::MAX as usize) < fields.len() {
-            return Err(CompileError::new_spanned(
-                &fields,
-                "QuickBuilder: too many fields in structure",
-            ));
-        }
-        Ok(Self::Usize)
-    }
-}
-
-impl ToTokens for FieldIndexType {
-    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
-        match self {
-            FieldIndexType::Usize => quote! { usize },
-        }
-        .to_tokens(tokens)
-    }
 }

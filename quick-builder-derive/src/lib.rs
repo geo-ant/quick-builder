@@ -1,11 +1,9 @@
 use builder::make_builder;
-use builder_state::make_builder_state;
 use detail::StructDeriveInput;
 use quote::quote;
 use syn::{parse_macro_input, DeriveInput};
 
 mod builder;
-mod builder_state;
 mod detail;
 mod error;
 mod validation;
@@ -27,12 +25,9 @@ macro_rules! try2 {
 pub fn quick_builder(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input: StructDeriveInput = try2!(parse_macro_input!(input as DeriveInput).try_into());
 
-    let builder_state = try2!(make_builder_state(&input));
-    let builder = try2!(make_builder(&input, &builder_state));
+    let builder = try2!(make_builder(&input));
 
     quote! {
-        #builder_state
-
         #builder
     }
     .into()
