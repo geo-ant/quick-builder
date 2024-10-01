@@ -70,13 +70,17 @@ pub fn make_builder(
     let builder_vis = syn::token::Pub::default();
 
     // helper function to generate the builder type with a given count of
-    // initialized fields, e.g FooBuilder<'a,T1,T2,2>
+    // initialized fields, e.g FooBuilder<'a,T1,T2,()>
     let builder_type_with_count = |count: usize| {
-        quote! {#builder_ident <#type_generics_without_angle_brackets, #count>}
+        let generic_tuple_types = fields.iter().take(count).map(|f| &f.ty);
+        quote! {#builder_ident <#type_generics_without_angle_brackets, ( #(#generic_tuple_types,)* )>}
     };
 
     let initial_builder_type = builder_type_with_count(0);
+    // comma separated list of all field types
+    let all_field_types = fields.iter().map(|f| &f.ty);
 
+    let builder_state_generic = format_ident!("__{}_State", builder_ident);
     // this is for defining the builder struct,
     // implementing a constructor on it
     // and defining the Builder method on the original struct
@@ -87,13 +91,18 @@ pub fn make_builder(
          // initialized. Initialized happens top to bottom in order of declaration.
          // Thus, the builder starts at count 0, which indicates no
          // fields have been initialized.
-         #builder_vis struct #builder_ident <#struct_generics, const __INIT_FIELD_COUNT: #field_index_type> #original_where_clause{
-             state: #builder_state_ident #original_ty_generics,
+         #[allow(non_camel_case_types)]
+         #builder_vis struct #builder_ident <#struct_generics, #builder_state_generic> #original_where_clause{
+             state: #builder_state_generic,
+             phantom: ::core::marker::PhantomData<( #(#all_field_types),* )>,
          }
 
          impl #original_impl_generics #initial_builder_type #original_where_clause {
             pub fn new() -> Self {
-                Self { state: #builder_state_ident::#original_ty_generics::uninit()}
+                Self {
+                    state: Default::default(),
+                    phantom: Default::default(),
+                }
             }
          }
 
@@ -117,13 +126,17 @@ pub fn make_builder(
         let setter_fn = field.ident.as_ref().map(|ident| format_ident!("{}", ident));
         let field_ident = &field.ident;
         let field_type = &field.ty;
+        let indices = 0..count;
+
         let setter_tokens = quote! {
 
          impl #original_impl_generics #previous_builder_type #original_where_clause {
             fn #setter_fn (self, #field_ident : #field_type) -> #next_builder_type {
                 let mut state = self.state;
-                state.#field_ident.write(#field_ident);
-                #builder_ident { state }
+                #builder_ident {
+                    state : (#( state. #indices,)* #field_ident,),
+                    phantom: Default::default(),
+                }
             }
          }
 
@@ -146,14 +159,14 @@ pub fn make_builder(
         // this is the simple case: if no validation is performed, we just return
         // the struct itself
         builder_tokens = quote! {
-             impl #original_impl_generics #final_builder #original_where_clause {
-                fn build(self) -> #original_struct_ident #original_ty_generics {
-                    // Safety: this is safe because we know all fields have been
-                    // initialized at this point.
-                    let finished = unsafe {self.state.assume_init()};
-                    finished
-                }
-             }
+             // impl #original_impl_generics #final_builder #original_where_clause {
+             //    fn build(self) -> #original_struct_ident #original_ty_generics {
+             //        // Safety: this is safe because we know all fields have been
+             //        // initialized at this point.
+             //        let finished = unsafe {self.state.assume_init()};
+             //        finished
+             //    }
+             // }
         };
     } else {
         // in case we have validators, we return an Optional that only contains
