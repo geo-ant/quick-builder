@@ -40,13 +40,6 @@ pub fn make_builder(
         ));
     }
 
-    // fields.iter().for_each(|field| {
-    //     println!("{}", field.ident.as_ref().unwrap());
-    //     field.attrs.iter().for_each(|attr| {
-    //         println!("{:?}", attr);
-    //     });
-    // });
-
     // the validate attribut on the struct itself, if any
     let struct_validate_attribute = ValidateAttribute::new(&input.attrs)?;
 

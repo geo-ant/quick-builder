@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
-use std::fmt::Display;
+
+use std::{fmt::Display, marker::PhantomData};
 
 use quick_builder_derive::QuickBuilder;
 
@@ -48,6 +49,8 @@ fn foo() {
         .build()
         .unwrap();
     let f9 = Foo::builder().f(1.).x(3).y(10.).r(&mut float).build();
+
+    let f10 = Foo::builder2().f(1.).x(3.).y(11).r(&mut float);
 }
 
 #[inline]
@@ -61,4 +64,108 @@ where
 fn bar() {
     let x = 0f32;
     check(&x, |f| f.is_nan());
+}
+
+impl<'a, T1: Default, T2: Display> Foo<'a, T1, T2> {
+    pub fn builder2() -> builder2::FooBuilder2<'a, T1, T2, ()> {
+        builder2::FooBuilder2::new()
+    }
+}
+
+mod builder2 {
+    use super::*;
+
+    // pub struct Foo<'a, T1: Default, T2>
+    // f: f64,
+    // x: T1,
+    // #[validate(|f|true)]
+    // y: T2,
+    // #[validate(validation)]
+    // r: &'a mut f64,
+    pub struct FooBuilder2<'a, T1: Default, T2, __State>
+    where
+        T2: Display,
+    {
+        state: __State,
+        phantom: PhantomData<(f64, T1, T2, &'a mut f64)>,
+    }
+
+    impl<'a, T1: Default, T2> FooBuilder2<'a, T1, T2, ()>
+    where
+        T2: Display,
+    {
+        pub fn new() -> Self {
+            Self {
+                state: Default::default(),
+                phantom: Default::default(),
+            }
+        }
+    }
+
+    impl<'a, T1: Default, T2> FooBuilder2<'a, T1, T2, ()>
+    where
+        T2: Display,
+    {
+        #[allow(unused_parens)]
+        pub fn f(self, f: f64) -> FooBuilder2<'a, T1, T2, (f64,)> {
+            FooBuilder2 {
+                state: (f,),
+                phantom: Default::default(),
+            }
+        }
+    }
+
+    impl<'a, T1: Default, T2> FooBuilder2<'a, T1, T2, (f64,)>
+    where
+        T2: Display,
+    {
+        pub fn x(self, x: T1) -> FooBuilder2<'a, T1, T2, (f64, T1)> {
+            let state = self.state;
+            FooBuilder2 {
+                state: (state.0, x),
+                phantom: Default::default(),
+            }
+        }
+    }
+
+    impl<'a, T1: Default, T2> FooBuilder2<'a, T1, T2, (f64, T1)>
+    where
+        T2: Display,
+    {
+        pub fn y(self, y: T2) -> FooBuilder2<'a, T1, T2, (f64, T1, T2)> {
+            let state = self.state;
+            FooBuilder2 {
+                state: (state.0, state.1, y),
+                phantom: Default::default(),
+            }
+        }
+    }
+
+    impl<'a, T1: Default, T2> FooBuilder2<'a, T1, T2, (f64, T1, T2)>
+    where
+        T2: Display,
+    {
+        pub fn r(self, r: &'a mut f64) -> FooBuilder2<'a, T1, T2, (f64, T1, T2, &'a mut f64)> {
+            let state = self.state;
+            FooBuilder2 {
+                state: (state.0, state.1, state.2, r),
+                phantom: Default::default(),
+            }
+        }
+    }
+    impl<'a, T1: Default, T2> FooBuilder2<'a, T1, T2, (f64, T1, T2, &'a mut f64)>
+    where
+        T2: Display,
+    {
+        pub fn build(self) -> Foo<'a, T1, T2> {
+            let finished = Foo {
+                f: self.state.0,
+                x: self.state.1,
+                y: self.state.2,
+                r: self.state.3,
+            };
+
+            finished
+        }
+    }
 }
