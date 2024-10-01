@@ -21,6 +21,7 @@ impl ToTokens for Builder {
 pub fn make_builder(input: &StructDeriveInput) -> Result<Builder, CompileError> {
     let original_struct_ident = &input.ident;
     let builder_ident = format_ident!("{}Builder", original_struct_ident);
+    let builder_mod_ident = format_ident!("__{}Module", builder_ident);
     let fields = match input.data.fields {
         syn::Fields::Named(ref named) => &named.named,
         _ => unreachable!("struct must only have named fields"),
@@ -76,34 +77,37 @@ pub fn make_builder(input: &StructDeriveInput) -> Result<Builder, CompileError> 
     // implementing a constructor on it
     // and defining the Builder method on the original struct
     let builder_struct_tokens = quote! {
-         // note we must stick our generic parameter at the end, because otherwise
-         // the compiler might complain that lifetimes have to go first.
-         // the __INIT_FIELD_COUNT tells us the number of fields that have been
-         // initialized. Initialized happens top to bottom in order of declaration.
-         // Thus, the builder starts at count 0, which indicates no
-         // fields have been initialized.
-         #[allow(non_camel_case_types)]
-         #builder_vis struct #builder_ident <#struct_generics, #builder_state_generic> #original_where_clause{
-             state: #builder_state_generic,
-             phantom: ::core::marker::PhantomData<( #(#all_field_types),* )>,
-         }
+        // note we must stick our generic parameter at the end, because otherwise
+        // the compiler might complain that lifetimes have to go first.
+        // the __INIT_FIELD_COUNT tells us the number of fields that have been
+        // initialized. Initialized happens top to bottom in order of declaration.
+        // Thus, the builder starts at count 0, which indicates no
+        // fields have been initialized.
+        #[allow(non_camel_case_types)]
+        #builder_vis struct #builder_ident <#struct_generics, #builder_state_generic> #original_where_clause{
+            state: #builder_state_generic,
+            phantom: ::core::marker::PhantomData<( #(#all_field_types),* )>,
+        }
 
-         impl #original_impl_generics #initial_builder_type #original_where_clause {
+        impl #original_impl_generics #initial_builder_type #original_where_clause {
             pub fn new() -> Self {
                 Self {
                     state: Default::default(),
                     phantom: Default::default(),
                 }
             }
-         }
+        }
 
-         impl #original_impl_generics #original_struct_ident #original_ty_generics
-             #original_where_clause {
-                 //@todo make this visibility configurable
-                 #builder_vis fn builder() -> #initial_builder_type {
-                     #builder_ident::new()
-                 }
-         }
+    };
+
+    let impl_build_function_on_original_struct_tokens = quote! {
+        impl #original_impl_generics #original_struct_ident #original_ty_generics
+            #original_where_clause {
+                //@todo make this visibility configurable
+                #builder_vis fn builder() -> #builder_mod_ident :: #initial_builder_type {
+                    #builder_mod_ident::#builder_ident::new()
+                }
+        }
     };
 
     // now we construct the chain of setter function on the builder, where
@@ -123,7 +127,7 @@ pub fn make_builder(input: &StructDeriveInput) -> Result<Builder, CompileError> 
         let setter_tokens = quote! {
 
          impl #original_impl_generics #previous_builder_type #original_where_clause {
-            fn #setter_fn (self, #field_ident : #field_type) -> #next_builder_type {
+            pub fn #setter_fn (self, #field_ident : #field_type) -> #next_builder_type {
                 let mut state = self.state;
                 #builder_ident {
                     state : (#( state. #indices,)* #field_ident,),
@@ -238,38 +242,46 @@ pub fn make_builder(input: &StructDeriveInput) -> Result<Builder, CompileError> 
 
         builder_tokens = quote! {
              impl #original_impl_generics #final_builder #original_where_clause {
+                 pub fn build(self) -> ::core::option::Option<#original_struct_ident #original_ty_generics> {
+                     // this function helps us with making sure the arguments
+                     // of the closures get deduced correctly
+                     // it is used above.
+                     #[inline(always)]
+                     fn __is_valid<__T,__F>(val: &__T, func: __F) -> bool
+                     where for<'__life> __F: FnOnce(&__T) -> bool {
+                         (func)(val)
+                     }
+                     // Safety: this is safe because we know all fields have been
+                     // initialized at this point.
+                     // finished structure, this still has to undergo validation
+                     let #finished_ident = #finished_struct_expression;
 
+                     #(#field_validator_logic)*
 
-                fn build(self) -> ::core::option::Option<#original_struct_ident #original_ty_generics> {
-                    // this function helps us with making sure the arguments
-                    // of the closures get deduced correctly
-                    // it is used above.
-                    #[inline(always)]
-                    fn __is_valid<__T,__F>(val: &__T, func: __F) -> bool
-                    where for<'__life> __F: FnOnce(&__T) -> bool {
-                        (func)(val)
-                    }
-                    // Safety: this is safe because we know all fields have been
-                    // initialized at this point.
-                    // finished structure, this still has to undergo validation
-                    let #finished_ident = #finished_struct_expression;
+                     #struct_validator_logic
 
-                    #(#field_validator_logic)*
-
-                    #struct_validator_logic
-
-                    Some(#finished_ident)
-                }
+                     Some(#finished_ident)
+                 }
              }
         };
     }
 
     let tokens = quote! {
-        #builder_struct_tokens
 
-        #(#setters)*
+        // implement the Foo::builder() function which returns the initial FooBuilder
+        #impl_build_function_on_original_struct_tokens
 
-        #builder_tokens
+        // the actual FooBuilder data structures and logic are namespaced in a
+        // module so that no internal state can leak out
+        #[allow(non_snake_case)]
+        #builder_vis mod #builder_mod_ident {
+            use super::*;
+            #builder_struct_tokens
+
+            #(#setters)*
+
+            #builder_tokens
+        }
     };
 
     Ok(Builder { tokens })

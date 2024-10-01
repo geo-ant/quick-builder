@@ -49,6 +49,8 @@ fn foo() {
         .build()
         .unwrap();
     let f9 = Foo::builder().f(1.).x(3).y(10.).r(&mut float).build();
+    let f10 = Foo::builder().f(2.).x(4).y("hallo").r(&mut float).build();
+    let f11 = Foo::builder().f(0.1).x(2.).y(33).r(&mut float).build();
 
     // let f10 = Foo::builder2().f(1.).x(3.).y(11).r(&mut float);
 }
