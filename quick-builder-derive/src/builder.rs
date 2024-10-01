@@ -1,11 +1,8 @@
-use crate::{
-    builder_state::BuilderState, detail::StructDeriveInput, error::CompileError,
-    validation::ValidateAttribute,
-};
+use crate::{detail::StructDeriveInput, error::CompileError, validation::ValidateAttribute};
 use proc_macro2::Span;
 use quote::{format_ident, quote, quote_spanned, ToTokens};
 use special_generics::TypeGenericsWithoutAngleBrackets;
-use syn::{spanned::Spanned, Fields};
+use syn::{spanned::Spanned, Index};
 
 mod special_generics;
 
@@ -21,11 +18,7 @@ impl ToTokens for Builder {
     }
 }
 
-pub fn make_builder(
-    input: &StructDeriveInput,
-    state: &BuilderState,
-) -> Result<Builder, CompileError> {
-    let builder_state_ident = state.ident();
+pub fn make_builder(input: &StructDeriveInput) -> Result<Builder, CompileError> {
     let original_struct_ident = &input.ident;
     let builder_ident = format_ident!("{}Builder", original_struct_ident);
     let fields = match input.data.fields {
@@ -63,8 +56,6 @@ pub fn make_builder(
     let struct_generics = &input.generics.params;
     let type_generics_without_angle_brackets =
         TypeGenericsWithoutAngleBrackets::from(&input.generics);
-
-    let field_index_type = FieldIndexType::new(&input.data.fields)?;
 
     // @todo make this visibility configurable
     let builder_vis = syn::token::Pub::default();
@@ -116,9 +107,10 @@ pub fn make_builder(
     };
 
     // now we construct the chain of setter function on the builder, where
-    // we go from __INIT_FIELD_COUNT i to count i+1 by setting the field at
-    // index i (starting with index 0, in order of declaration). That means that
-    // we transitively know that if the field at index i is set,
+    // we go from count i to count i+1 by setting the field at
+    // index i (starting with index 0, in order of declaration).
+    // The generic tuple argument goes from () -> (TypeOfField0,) -> (TypeOfField0,TypeOfField1) ->...
+    // That means that we transitively know that if the field at index i is set,
     // all fields at indices 0,...,i have been set.
     let setters = fields.iter().enumerate().map(|(count, field)| {
         let previous_builder_type = builder_type_with_count(count);
@@ -126,7 +118,7 @@ pub fn make_builder(
         let setter_fn = field.ident.as_ref().map(|ident| format_ident!("{}", ident));
         let field_ident = &field.ident;
         let field_type = &field.ty;
-        let indices = 0..count;
+        let indices = (0..count).map(|idx| Index::from(idx));
 
         let setter_tokens = quote! {
 
@@ -152,6 +144,24 @@ pub fn make_builder(
     // validate expressions fails.
     let final_builder = builder_type_with_count(fields.len());
 
+    // helper expression that produces an instance of the structure that we
+    // are building from the finished builder state
+    let finished_struct_expression = {
+        let field_names = fields
+            .iter()
+            .map(|f| f.ident.as_ref().expect("struct fields must be named"));
+        let field_names_again = field_names.clone();
+        quote! {
+            {
+                // destructure the state into the fields
+                let ( #(#field_names),*  ) = self.state;
+                #original_struct_ident {
+                    #(#field_names_again),*
+                }
+            }
+        }
+    };
+
     let builder_tokens;
     let has_validators = struct_validate_attribute.is_some()
         || field_validate_attributes.iter().any(|val| val.is_some());
@@ -159,14 +169,14 @@ pub fn make_builder(
         // this is the simple case: if no validation is performed, we just return
         // the struct itself
         builder_tokens = quote! {
-             // impl #original_impl_generics #final_builder #original_where_clause {
-             //    fn build(self) -> #original_struct_ident #original_ty_generics {
-             //        // Safety: this is safe because we know all fields have been
-             //        // initialized at this point.
-             //        let finished = unsafe {self.state.assume_init()};
-             //        finished
-             //    }
-             // }
+             impl #original_impl_generics #final_builder #original_where_clause {
+                fn build(self) -> #original_struct_ident #original_ty_generics {
+                    // Safety: this is safe because we know all fields have been
+                    // initialized at this point.
+                    let finished = #finished_struct_expression;
+                    finished
+                }
+             }
         };
     } else {
         // in case we have validators, we return an Optional that only contains
@@ -242,7 +252,7 @@ pub fn make_builder(
                     // Safety: this is safe because we know all fields have been
                     // initialized at this point.
                     // finished structure, this still has to undergo validation
-                    let #finished_ident = unsafe {self.state.assume_init()};
+                    let #finished_ident = #finished_struct_expression;
 
                     #(#field_validator_logic)*
 
@@ -263,39 +273,4 @@ pub fn make_builder(
     };
 
     Ok(Builder { tokens })
-}
-
-#[derive(Copy, Clone, PartialEq, Eq)]
-/// the type of the const generic field index
-//@note(geo) I noticed something interesting, since I was previously allowing
-// i64 as the type and had negative numbers for the associated constant. As soon
-// as I used negative numbers, the type deduction goes out of the window for
-// rust-analyzer (the compiler itself is fine) and the autocompletion will
-// suggest methods that aren't even implemented for a specific generic builder
-// instance.
-pub enum FieldIndexType {
-    Usize,
-}
-
-impl FieldIndexType {
-    /// construct a new field index generic type that takes the number of
-    /// fields into account.
-    pub fn new(fields: &Fields) -> Result<Self, CompileError> {
-        if (i64::MAX as usize) < fields.len() {
-            return Err(CompileError::new_spanned(
-                &fields,
-                "QuickBuilder: too many fields in structure",
-            ));
-        }
-        Ok(Self::Usize)
-    }
-}
-
-impl ToTokens for FieldIndexType {
-    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
-        match self {
-            FieldIndexType::Usize => quote! { usize },
-        }
-        .to_tokens(tokens)
-    }
 }
