@@ -84,7 +84,8 @@ pub fn make_builder(input: &StructDeriveInput) -> Result<Builder, CompileError> 
         // Thus, the builder starts at count 0, which indicates no
         // fields have been initialized.
         #[allow(non_camel_case_types)]
-        #builder_vis struct #builder_ident <#struct_generics, #builder_state_generic> #original_where_clause{
+        #[must_use]
+        pub struct #builder_ident <#struct_generics, #builder_state_generic> #original_where_clause{
             state: #builder_state_generic,
             phantom: ::core::marker::PhantomData<( #(#all_field_types),* )>,
         }
@@ -127,6 +128,7 @@ pub fn make_builder(input: &StructDeriveInput) -> Result<Builder, CompileError> 
         let setter_tokens = quote! {
 
          impl #original_impl_generics #previous_builder_type #original_where_clause {
+            #[must_use]
             pub fn #setter_fn (self, #field_ident : #field_type) -> #next_builder_type {
                 let mut state = self.state;
                 #builder_ident {

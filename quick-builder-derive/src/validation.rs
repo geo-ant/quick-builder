@@ -3,7 +3,6 @@
 //! one argument returning a bool, or paths that must point to a function
 //! with one argument returning a bool. The argument must be of type
 //! `&Foo` where `Foo` is the structure for which we created the builder.
-
 use proc_macro2::Span;
 use quote::ToTokens;
 use syn::{spanned::Spanned, Attribute, ExprClosure, Meta, Path};
@@ -51,10 +50,12 @@ impl InvariantAttribute {
     /// one invariant attribute is present, returns an error.
     pub fn new(attributes: &[Attribute]) -> Result<Option<Self>, CompileError> {
         // helper predicate that helps us find the invariant attribute
+        // this does not check whether the construct itself is valid, but only whether
+        // the attribute is *called* correctly.
         let is_invariant_attribute = |attr: &Attribute| match attr.meta {
             Meta::Path(ref path) => path.is_ident(INVARIANT_ATTR),
             Meta::List(ref list) => list.path.is_ident(INVARIANT_ATTR),
-            Meta::NameValue(_) => false,
+            Meta::NameValue(ref name_value) => name_value.path.is_ident(INVARIANT_ATTR),
         };
 
         // get the zero or one invariant attributes
@@ -141,7 +142,7 @@ impl TryFrom<&Meta> for InvariantExpression {
                     } else {
                         return Err(CompileError::new_spanned(
                             path,
-                            "validation argument must be given a closure or function name",
+                            format!("attribute must have form #[{INVARIANT_ATTR}(expression)], where expression is a function name or closure"),
                         ));
                     }
                 }
@@ -171,13 +172,13 @@ impl TryFrom<&Meta> for InvariantExpression {
                 } else {
                     Err(CompileError::new_spanned(
                         meta,
-                        "validation argument must be a function or a single argument closure",
+                        format!("attribute must have form #[{INVARIANT_ATTR}(expression)], where expression is a function name or closure"),
                     ))
                 }
             }
             Meta::NameValue(value) => Err(CompileError::new_spanned(
                 value,
-                "QuickBuilder: Attribute arguments must either be a function name or a closure.",
+                format!("attribute must have form #[{INVARIANT_ATTR}(expression)], where expression is a function name or closure"),
             )),
         }
     }
