@@ -1,4 +1,4 @@
-use crate::{detail::StructDeriveInput, error::CompileError, validation::ValidateAttribute};
+use crate::{detail::StructDeriveInput, error::CompileError, validation::InvariantAttribute};
 use proc_macro2::Span;
 use quote::{format_ident, quote, quote_spanned, ToTokens};
 use special_generics::TypeGenericsWithoutAngleBrackets;
@@ -35,14 +35,14 @@ pub fn make_builder(input: &StructDeriveInput) -> Result<Builder, CompileError> 
     }
 
     // the validate attribut on the struct itself, if any
-    let struct_validate_attribute = ValidateAttribute::new(&input.attrs)?;
+    let struct_validate_attribute = InvariantAttribute::new(&input.attrs)?;
 
     // an iterator over the validate attributes (if any) of the individual fields.
     // Errors should be passed on as compile errors.
     // there is a 1-to-1 correspondence between the fields and the items in this iterator.
     let field_validate_attributes = fields
         .iter()
-        .map(|f| ValidateAttribute::new(&f.attrs))
+        .map(|f| InvariantAttribute::new(&f.attrs))
         .collect::<Result<Vec<_>, _>>()?;
 
     // these are the generics for the original type and the internal state

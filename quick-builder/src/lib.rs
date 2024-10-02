@@ -1,22 +1,21 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
-
 use std::fmt::Display;
 
-use quick_builder_derive::QuickBuilder;
+pub use quick_builder_derive::QuickBuilder;
 
 #[derive(Debug, QuickBuilder)]
-#[validate(|me|me.f > *me.r)]
+#[invariant(|me|me.f > *me.r)]
 pub struct Foo<'a, T1: Default, T2>
 where
     T2: Display,
 {
-    #[validate(|f|!f.is_nan()||!f.is_finite())]
+    #[invariant(|f|!f.is_nan()||!f.is_finite())]
     f: f64,
     x: T1,
-    #[validate(|f|true)]
+    #[invariant(|f|true)]
     y: T2,
-    #[validate(validation)]
+    #[invariant(validation)]
     r: &'a mut f64,
 }
 

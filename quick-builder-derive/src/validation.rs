@@ -1,5 +1,5 @@
-//! this module helps us pass the #[validate(my_function)] and e.g.
-//! #[validate(|arg| arg.len() == 3]. Valid expressions are closures with
+//! this module helps us pass the #[invariant(my_function)] and e.g.
+//! #[invariant(|arg| arg.len() == 3]. Valid expressions are closures with
 //! one argument returning a bool, or paths that must point to a function
 //! with one argument returning a bool. The argument must be of type
 //! `&Foo` where `Foo` is the structure for which we created the builder.
@@ -8,17 +8,30 @@ use proc_macro2::Span;
 use quote::ToTokens;
 use syn::{spanned::Spanned, Attribute, ExprClosure, Meta, Path};
 
-pub const VALIDATE_ATTR: &str = "validate";
+const INVARIANT_ATTR: &str = "invariant";
 
 use crate::error::CompileError;
 
 #[derive(Debug)]
-pub struct ValidateAttribute {
+/// the invariant-attribute:
+/// the struct itself can have 0 or 1 of these attributes and each field
+/// can have 0 or one of these attributes.
+///
+/// The attribute itself comes in one of two forms
+/// EITHER `#[invariant(function_name)]`, where `function_name` is the path to a
+/// function
+/// OR `#[invariant(|x| !x.is_nan())]`, where the expression in brackets is a closure.
+/// For fields, the closure argument is deduced to be reference-to-field (except
+/// if the field is itself a reference, then the reference is passed directly).
+///
+/// If the attribute is on the struct, the finished struct itself is passed for
+/// validation before it is built.
+pub struct InvariantAttribute {
     /// the expression in brackets in the validation attribute
-    expression: ValidationExpression,
+    expression: InvariantExpression,
 }
 
-impl ValidateAttribute {
+impl InvariantAttribute {
     /// get the expression for validation as tokens. This is just the function name
     /// or the code of the closure inside the attribute braces. No additional magic has been performed.
     pub fn expression<'a>(&'a self) -> impl ToTokens + 'a {
@@ -30,38 +43,38 @@ impl ValidateAttribute {
     }
 }
 
-impl ValidateAttribute {
-    /// try parsing the validate attribute from a list of attributes of a field.
-    /// A field may have ZERO or ONE validate attributes, hence the Option<...>.
-    /// The option has None value if the field does not have a validate attribute,
+impl InvariantAttribute {
+    /// try parsing the invariant attribute from a list of attributes of a field.
+    /// A field may have ZERO or ONE invariant attributes, hence the Option<...>.
+    /// The option has None value if the field does not have a invariant attribute,
     /// otherwise it is Some(...). If an error occurs during parsing, or if more than
-    /// one validate attribute is present, returns an error.
+    /// one invariant attribute is present, returns an error.
     pub fn new(attributes: &[Attribute]) -> Result<Option<Self>, CompileError> {
-        // helper predicate that helps us find the validate attribute
-        let is_validate_attribute = |attr: &Attribute| match attr.meta {
+        // helper predicate that helps us find the invariant attribute
+        let is_invariant_attribute = |attr: &Attribute| match attr.meta {
             Meta::Path(ref path) => {
-                path.segments.len() == 1 && path.segments[0].ident == VALIDATE_ATTR
+                path.segments.len() == 1 && path.segments[0].ident == INVARIANT_ATTR
             }
             Meta::List(ref list) => {
-                list.path.segments.len() == 1 && list.path.segments[0].ident == VALIDATE_ATTR
+                list.path.segments.len() == 1 && list.path.segments[0].ident == INVARIANT_ATTR
             }
             Meta::NameValue(_) => false,
         };
 
-        // get the zero or one validate attributes
+        // get the zero or one invariant attributes
         // return an error if one was encountered, also return an error when more
         // than one attribute exists.
         let result: Result<Option<&Attribute>, CompileError> =
             attributes.iter().fold(Ok(None), |init, curr| match init {
                 Ok(None) => {
-                    if is_validate_attribute(curr) {
+                    if is_invariant_attribute(curr) {
                         Ok(Some(curr))
                     } else {
                         Ok(None)
                     }
                 }
                 Ok(Some(previous)) => {
-                    if is_validate_attribute(curr) {
+                    if is_invariant_attribute(curr) {
                         Err(CompileError::new_spanned(
                             curr,
                             "only one attribute of this kind allowed per item",
@@ -72,20 +85,20 @@ impl ValidateAttribute {
                 }
                 Err(err) => Err(err),
             });
-        let maybe_validate_attr = result?;
-        let Some(validate_attr) = maybe_validate_attr else {
+        let maybe_invariant_attr = result?;
+        let Some(invariant_attr) = maybe_invariant_attr else {
             return Ok(None);
         };
 
-        let expression = ValidationExpression::try_from(&validate_attr.meta)?;
+        let expression = InvariantExpression::try_from(&invariant_attr.meta)?;
 
         Ok(Some(Self { expression }))
     }
 }
 
-/// the expression for validation
+/// the expression inside the braces of the #[invariant(...)] attribute
 #[derive(Debug)]
-enum ValidationExpression {
+enum InvariantExpression {
     /// a closure is defined
     /// (there are some aspects that we can verify, but not all)
     Closure(ExprClosure),
@@ -94,31 +107,31 @@ enum ValidationExpression {
     Path(Path),
 }
 
-impl ValidationExpression {
+impl InvariantExpression {
     fn full_span(&self) -> proc_macro2::Span {
         match self {
-            ValidationExpression::Closure(closure) => closure.body.span(),
-            ValidationExpression::Path(path) => path.span(),
+            InvariantExpression::Closure(closure) => closure.body.span(),
+            InvariantExpression::Path(path) => path.span(),
         }
     }
 }
 
-impl ToTokens for ValidationExpression {
+impl ToTokens for InvariantExpression {
     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
         match self {
-            ValidationExpression::Closure(closure) => closure.to_tokens(tokens),
-            ValidationExpression::Path(path) => path.to_tokens(tokens),
+            InvariantExpression::Closure(closure) => closure.to_tokens(tokens),
+            InvariantExpression::Path(path) => path.to_tokens(tokens),
         }
     }
 }
 
-impl TryFrom<&Meta> for ValidationExpression {
+impl TryFrom<&Meta> for InvariantExpression {
     type Error = CompileError;
     fn try_from(meta: &Meta) -> Result<Self, CompileError> {
         match meta {
             // this means that just the attribute, without the braces has been given
-            // we must return an error. Meaning just #[validate]. If a path (e.g.
-            // function name is given in braces, like #[validate(my_fun)], this
+            // we must return an error. Meaning just #[invariant]. If a path (e.g.
+            // function name is given in braces, like #[invariant(my_fun)], this
             // is handled in the case below.
             Meta::Path(path) => Err(CompileError::new_spanned(
                 path,
