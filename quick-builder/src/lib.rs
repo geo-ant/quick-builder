@@ -10,7 +10,7 @@ pub struct Foo<'a, T1: Default, T2>
 where
     T2: Display,
 {
-    #[invariant(|f|!f.is_nan()||!f.is_finite())]
+    #[invariant(|f|!f.is_nan()||*f>0.)]
     f: f64,
     x: T1,
     #[invariant(|f|true)]

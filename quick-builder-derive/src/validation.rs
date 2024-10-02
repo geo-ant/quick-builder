@@ -52,12 +52,8 @@ impl InvariantAttribute {
     pub fn new(attributes: &[Attribute]) -> Result<Option<Self>, CompileError> {
         // helper predicate that helps us find the invariant attribute
         let is_invariant_attribute = |attr: &Attribute| match attr.meta {
-            Meta::Path(ref path) => {
-                path.segments.len() == 1 && path.segments[0].ident == INVARIANT_ATTR
-            }
-            Meta::List(ref list) => {
-                list.path.segments.len() == 1 && list.path.segments[0].ident == INVARIANT_ATTR
-            }
+            Meta::Path(ref path) => path.is_ident(INVARIANT_ATTR),
+            Meta::List(ref list) => list.path.is_ident(INVARIANT_ATTR),
             Meta::NameValue(_) => false,
         };
 
