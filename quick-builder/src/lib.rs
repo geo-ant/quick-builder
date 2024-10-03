@@ -1,20 +1,27 @@
+#![doc= include_str!("../Readme.md")]
+
 pub use quick_builder_derive::QuickBuilder;
 use std::fmt::Display;
 
-#[derive(Debug, QuickBuilder)]
-#[invariant(|me|me.f > *me.r)]
+// #[derive(Debug, QuickBuilder)]
+// #[invariant(|me|me.f > *me.r)]
 pub struct Foo<'a, T1: Default, T2>
 where
     T2: Display,
 {
-    #[invariant(|f|!f.is_nan()||*f>0.)]
+    // #[invariant(|f|!f.is_nan()||*f>0.)]
     f: f64,
     x: T1,
-    #[invariant(|f|true)]
+    // #[invariant(|f|true)]
     y: T2,
-    #[invariant(validation)]
+    // #[invariant(validation)]
     // #[invariant = validate]
     r: &'a mut f64,
+}
+
+#[derive(QuickBuilder)]
+struct Foo2<T> {
+    first: T,
 }
 
 fn validation<T>(f: &T) -> bool {
@@ -37,33 +44,26 @@ fn foo() {
     // //     .build();
     // // let f6 = Foo::builder().set_x(1.).set_y(3.).set_r(&3.).build();
     // // let f7 = Foo::builder().f(1.).x(4).y(1.).r(&3.).build().unwrap();
-    let mut float = f64::NAN;
-    let f8 = Foo::builder()
-        .f(1.)
-        .x(2.)
-        .y(4.)
-        .r(&mut float)
-        .build()
-        .unwrap();
-    let f9 = Foo::builder().f(1.).x(3).y(10.).r(&mut float).build();
-    let f10 = Foo::builder().f(2.).x(4).y("hallo").r(&mut float).build();
-    let f11 = Foo::builder().f(0.1).x(2.).y(33).r(&mut float).build();
-    let _f21 = Foo::builder().f(0.1).x(2.).y(33);
+    // let mut float = f64::NAN;
+    // let f8 = Foo::builder()
+    //     .f(1.)
+    //     .x(2.)
+    //     .y(4.)
+    //     .r(&mut float)
+    //     .build()
+    //     .unwrap();
+    // let f9 = Foo::builder().f(1.).x(3).y(10.).r(&mut float).build();
+    // let f10 = Foo::builder().f(2.).x(4).y("hallo").r(&mut float).build();
+    // let f11 = Foo::builder().f(0.1).x(2.).y(33).r(&mut float).build();
+    // let _f21 = Foo::builder()
+    //     .f(0.1)
+    //     .x(2.)
+    //     .y(33)
+    //     .r(&mut float)
+    //     .build()
+    //     .expect("asdfadsf");
 
     // let f10 = Foo::builder2().f(1.).x(3.).y(11).r(&mut float);
-}
-
-#[inline]
-fn check<F, T>(t: &T, f: F) -> bool
-where
-    F: Fn(&T) -> bool,
-{
-    (f)(t)
-}
-
-fn bar() {
-    let x = 0f32;
-    check(&x, |f| f.is_nan());
 }
 
 // impl<'a, T1: Default, T2: Display> Foo<'a, T1, T2> {

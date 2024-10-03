@@ -156,13 +156,12 @@ pub fn make_builder(input: &StructDeriveInput) -> Result<Builder, CompileError> 
         let field_names = fields
             .iter()
             .map(|f| f.ident.as_ref().expect("struct fields must be named"));
-        let field_names_again = field_names.clone();
+        // let field_names_again = field_names.clone();
+        let indices = (0..field_names.len()).map(|idx| Index::from(idx));
         quote! {
             {
-                // destructure the state into the fields
-                let ( #(#field_names),*  ) = self.state;
                 #original_struct_ident {
-                    #(#field_names_again),*
+                    #(#field_names : self.state. #indices),*
                 }
             }
         }
@@ -235,7 +234,7 @@ pub fn make_builder(input: &StructDeriveInput) -> Result<Builder, CompileError> 
             let validator_expression = validator.expression();
             let span = validator_expression.span();
             quote_spanned! {span=>
-                let is_validated : bool = __is_valid(& #finished_ident,#validator_expression);
+                let is_validated : bool = __is_valid(& #finished_ident, #validator_expression);
                 if !is_validated {
                     return None;
                 }
@@ -276,6 +275,7 @@ pub fn make_builder(input: &StructDeriveInput) -> Result<Builder, CompileError> 
         // the actual FooBuilder data structures and logic are namespaced in a
         // module so that no internal state can leak out
         #[allow(non_snake_case)]
+        // #[doc(hidden)]
         #builder_vis mod #builder_mod_ident {
             use super::*;
             #builder_struct_tokens
