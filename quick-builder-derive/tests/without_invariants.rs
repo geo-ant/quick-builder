@@ -1,8 +1,5 @@
 use quick_builder_derive::QuickBuilder;
-use std::{
-    fmt::{Debug, Display},
-    str::FromStr,
-};
+use std::fmt::Debug;
 
 #[derive(PartialEq, Debug, QuickBuilder)]
 struct WithoutGenerics {
