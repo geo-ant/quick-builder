@@ -1,4 +1,4 @@
-# QuickBuilder: Compile Time Builder with Enforcement of Runtime Invariants
+# QuickBuilder: Compile Time Builder with Enforcement of Run-Time Invariants
 
 This crate offers a simple, but powerful, compile time builder pattern generator.
 The philosophy is to verify as much as it can at compile time, while also
@@ -99,3 +99,24 @@ As soon as an `#[invariant(...)]` attribute is encountered, the `build` function
 changes its signature. It now returns an optional instance of the original
 structure, where the optional contains a value if and only if all invariants
 where upheld during the building.
+
+## Limitations
+
+* **Build Order**: The builder function must be executed in the order of
+  field declarations in the struct. Typically, IDE support is good enough
+  to provide you with the next allowed option, so you don't have to look
+  up the struct fields. The `bon` and `typed-builder` crates allow arbitrary
+  orders, but they don't have a mechanism for enforcing run-time invariants.
+* **Default/Optional Arguments**: there is no support for default or optional
+  arguments (yet).
+
+## Alternatives
+
+There is a great [overview of builder crates](https://elastio.github.io/bon/guide/alternatives)
+by the `bon` team. Of those, to my knowledge, only the [derive_builder](https://docs.rs/derive_builder/latest/derive_builder/)
+crate provides a way to enforce run-time invariants. However, this crate
+does not verify at compile-time that all required fields have been set. It would
+be a run-time error in that case. Some might argue, if we have run-time
+errors anyways (due to the invariants) we might not care about that. But my
+philosophy is that I'd rather validate as much as I can at compile time and
+let run-time errors be run-time errors, but that's just me.
