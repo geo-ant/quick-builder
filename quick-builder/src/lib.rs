@@ -1,6 +1,5 @@
-use std::fmt::Display;
-
 pub use quick_builder_derive::QuickBuilder;
+use std::fmt::Display;
 
 #[derive(Debug, QuickBuilder)]
 #[invariant(|me|me.f > *me.r)]
