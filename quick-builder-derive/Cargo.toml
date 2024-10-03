@@ -10,3 +10,6 @@ proc-macro = true
 quote = "1"
 proc-macro2 = "1.0"
 syn = {version="2.0",features=["parsing","full","clone-impls","extra-traits"]}
+
+[dev-dependencies]
+trybuild = "1.0"

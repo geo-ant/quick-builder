@@ -176,7 +176,7 @@ pub fn make_builder(input: &StructDeriveInput) -> Result<Builder, CompileError> 
         // the struct itself
         builder_tokens = quote! {
              impl #original_impl_generics #final_builder #original_where_clause {
-                fn build(self) -> #original_struct_ident #original_ty_generics {
+                pub fn build(self) -> #original_struct_ident #original_ty_generics {
                     // Safety: this is safe because we know all fields have been
                     // initialized at this point.
                     let finished = #finished_struct_expression;
