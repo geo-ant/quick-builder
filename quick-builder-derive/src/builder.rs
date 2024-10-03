@@ -55,17 +55,22 @@ pub fn make_builder(input: &StructDeriveInput) -> Result<Builder, CompileError> 
 
     // this is like the impl generics but without the enclosing <...>
     let struct_generics = &input.generics.params;
-    let type_generics_without_angle_brackets =
-        TypeGenericsWithoutAngleBrackets::from(&input.generics);
 
     // @todo make this visibility configurable
     let builder_vis = syn::token::Pub::default();
 
+    let maybe_trailing_comma: Option<syn::token::Comma> = if input.generics.params.is_empty() {
+        None
+    } else {
+        Some(syn::token::Comma::default())
+    };
     // helper function to generate the builder type with a given count of
     // initialized fields, e.g FooBuilder<'a,T1,T2,()>
     let builder_type_with_count = |count: usize| {
+        let type_generics_without_angle_brackets =
+            TypeGenericsWithoutAngleBrackets::from(&input.generics);
         let generic_tuple_types = fields.iter().take(count).map(|f| &f.ty);
-        quote! {#builder_ident <#type_generics_without_angle_brackets, ( #(#generic_tuple_types,)* )>}
+        quote! {#builder_ident <#type_generics_without_angle_brackets #maybe_trailing_comma ( #(#generic_tuple_types,)* )>}
     };
 
     let initial_builder_type = builder_type_with_count(0);
@@ -85,7 +90,7 @@ pub fn make_builder(input: &StructDeriveInput) -> Result<Builder, CompileError> 
         // fields have been initialized.
         #[allow(non_camel_case_types)]
         #[must_use]
-        pub struct #builder_ident <#struct_generics, #builder_state_generic> #original_where_clause{
+        pub struct #builder_ident <#struct_generics #maybe_trailing_comma #builder_state_generic> #original_where_clause{
             state: #builder_state_generic,
             phantom: ::core::marker::PhantomData<( #(#all_field_types),* )>,
         }
