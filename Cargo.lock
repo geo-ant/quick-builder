@@ -53,14 +53,14 @@ dependencies = [
 
 [[package]]
 name = "quick-builder"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "quick-builder-derive",
 ]
 
 [[package]]
 name = "quick-builder-derive"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "proc-macro2",
  "quote",

@@ -28,7 +28,6 @@ fn validation<T>(f: &T) -> bool {
     std::mem::size_of::<T>() <= 4
 }
 
-#[test]
 fn foo() {
     // let f = validation;
     // if !(f)(&1.) {}
