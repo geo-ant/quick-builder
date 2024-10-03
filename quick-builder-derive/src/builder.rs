@@ -253,7 +253,7 @@ pub fn make_builder(input: &StructDeriveInput) -> Result<Builder, CompileError> 
                      // of the closures get deduced correctly
                      // it is used above.
                      #[inline(always)]
-                     fn __is_valid<__T,__F>(val: &__T, func: __F) -> bool
+                     fn __is_valid<__T:?Sized,__F>(val: &__T, func: __F) -> bool
                      where for<'__life> __F: FnOnce(&__T) -> bool {
                          (func)(val)
                      }
