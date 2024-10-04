@@ -2,6 +2,14 @@
 name = "quick-builder-derive"
 version = "0.1.0"
 edition = "2021"
+authors = ["geo-ant"]
+license = "MIT"
+homepage = "https://github.com/geo-ant/quick-builder"
+repository = "https://github.com/geo-ant/quick-builder"
+description = "derive macros for the quick-builder crate"
+readme = "Readme.md"
+keywords = ["builder"]
+categories = ["rust-patterns"]
 
 [lib]
 proc-macro = true
