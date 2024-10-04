@@ -55,7 +55,7 @@ dependencies = [
 name = "quick-builder"
 version = "0.1.0"
 dependencies = [
- "quick-builder-derive",
+ "quick-builder-derive 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -66,6 +66,17 @@ dependencies = [
  "quote",
  "syn",
  "trybuild",
+]
+
+[[package]]
+name = "quick-builder-derive"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "92857678798f7847d44e8520e4f256b4759c0b7419afb056d41bb69b097acf2f"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
