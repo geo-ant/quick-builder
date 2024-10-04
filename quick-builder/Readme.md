@@ -1,5 +1,11 @@
 # QuickBuilder: Compile Time Builder with Enforcement of Run-Time Invariants
 
+![build](https://github.com/geo-ant/quick-builder/actions/workflows/build.yml/badge.svg?branch=main)
+![tests](https://github.com/geo-ant/quick-builder/actions/workflows/tests.yml/badge.svg?branch=main)
+![lints](https://github.com/geo-ant/quick-builder/actions/workflows/lints.yml/badge.svg?branch=main)
+[![crates](https://img.shields.io/crates/v/quick-builder)](https://crates.io/crates/quick-builder)
+![maintenance-status](https://img.shields.io/badge/maintenance-actively--developed-brightgreen.svg)
+
 This crate offers a simple, but powerful, compile time builder pattern generator.
 The philosophy is to verify as much as it can at compile time, while also
 providing as straightforward way to check runtime invariants.
