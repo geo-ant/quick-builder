@@ -12,5 +12,5 @@ categories = ["rust-patterns","data-structures"]
 keywords = ["builder", "derive", "macro", "validate", "invariant"]
 
 [dependencies]
-# quick-builder-derive = {path="../quick-builder-derive"}
-quick-builder-derive = "0.1.0"
+quick-builder-derive = {path="../quick-builder-derive"}
+# quick-builder-derive = "0.1.0"
