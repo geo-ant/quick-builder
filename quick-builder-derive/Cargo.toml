@@ -7,7 +7,7 @@ license = "MIT"
 homepage = "https://github.com/geo-ant/quick-builder"
 repository = "https://github.com/geo-ant/quick-builder"
 description = "derive macros for the quick-builder crate"
-readme = "README.md"
+readme = "Readme.md"
 keywords = ["builder"]
 categories = ["rust-patterns"]
 
