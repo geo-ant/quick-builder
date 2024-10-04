@@ -1,0 +1,18 @@
+error[E0599]: no method named `build` found for struct `FooBuilder<'_, i32, (&f32, i32)>` in the current scope
+  --> tests/fail/simple_builder_calls_build_too_early2.rs:21:10
+   |
+3  |   #[derive(QuickBuilder, PartialEq, Debug)]
+   |            ------------ method `build` not found for this struct
+...
+17 |       let built = Foo::<i32>::builder()
+   |  _________________-
+18 | |         .first(&float)
+19 | |         .second(10)
+20 | |         // .third(0.3)
+21 | |         .build();
+   | |         -^^^^^ method not found in `FooBuilder<'_, i32, (&f32, i32)>`
+   | |_________|
+   |
+   |
+   = note: the method was found for
+           - `FooBuilder<'a, T, (&'a f32, T, f32)>`

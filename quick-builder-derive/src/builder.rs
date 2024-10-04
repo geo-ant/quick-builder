@@ -1,10 +1,15 @@
-use crate::{detail::StructDeriveInput, error::CompileError, validation::ValidateAttribute};
+use crate::{detail::StructDeriveInput, error::CompileError, validation::InvariantAttribute};
 use proc_macro2::Span;
 use quote::{format_ident, quote, quote_spanned, ToTokens};
 use special_generics::TypeGenericsWithoutAngleBrackets;
 use syn::{spanned::Spanned, Index};
 
 mod special_generics;
+
+/// the identifier for the finished value of the structure to build inside the
+/// builder method. We have a global constant because we want to verify that
+/// it does not get used in closures.
+pub const FINISHED_VALUE_IDENT: &str = "__finished_instance";
 
 /// the builder struct and its impl blocks
 pub struct Builder {
@@ -35,14 +40,14 @@ pub fn make_builder(input: &StructDeriveInput) -> Result<Builder, CompileError> 
     }
 
     // the validate attribut on the struct itself, if any
-    let struct_validate_attribute = ValidateAttribute::new(&input.attrs)?;
+    let struct_validate_attribute = InvariantAttribute::new(&input.attrs)?;
 
     // an iterator over the validate attributes (if any) of the individual fields.
     // Errors should be passed on as compile errors.
     // there is a 1-to-1 correspondence between the fields and the items in this iterator.
     let field_validate_attributes = fields
         .iter()
-        .map(|f| ValidateAttribute::new(&f.attrs))
+        .map(|f| InvariantAttribute::new(&f.attrs))
         .collect::<Result<Vec<_>, _>>()?;
 
     // these are the generics for the original type and the internal state
@@ -55,17 +60,22 @@ pub fn make_builder(input: &StructDeriveInput) -> Result<Builder, CompileError> 
 
     // this is like the impl generics but without the enclosing <...>
     let struct_generics = &input.generics.params;
-    let type_generics_without_angle_brackets =
-        TypeGenericsWithoutAngleBrackets::from(&input.generics);
 
     // @todo make this visibility configurable
     let builder_vis = syn::token::Pub::default();
 
+    let maybe_trailing_comma: Option<syn::token::Comma> = if input.generics.params.is_empty() {
+        None
+    } else {
+        Some(syn::token::Comma::default())
+    };
     // helper function to generate the builder type with a given count of
     // initialized fields, e.g FooBuilder<'a,T1,T2,()>
     let builder_type_with_count = |count: usize| {
+        let type_generics_without_angle_brackets =
+            TypeGenericsWithoutAngleBrackets::from(&input.generics);
         let generic_tuple_types = fields.iter().take(count).map(|f| &f.ty);
-        quote! {#builder_ident <#type_generics_without_angle_brackets, ( #(#generic_tuple_types,)* )>}
+        quote! {#builder_ident <#type_generics_without_angle_brackets #maybe_trailing_comma ( #(#generic_tuple_types,)* )>}
     };
 
     let initial_builder_type = builder_type_with_count(0);
@@ -84,7 +94,8 @@ pub fn make_builder(input: &StructDeriveInput) -> Result<Builder, CompileError> 
         // Thus, the builder starts at count 0, which indicates no
         // fields have been initialized.
         #[allow(non_camel_case_types)]
-        #builder_vis struct #builder_ident <#struct_generics, #builder_state_generic> #original_where_clause{
+        #[must_use]
+        pub struct #builder_ident <#struct_generics #maybe_trailing_comma #builder_state_generic> #original_where_clause{
             state: #builder_state_generic,
             phantom: ::core::marker::PhantomData<( #(#all_field_types),* )>,
         }
@@ -122,11 +133,12 @@ pub fn make_builder(input: &StructDeriveInput) -> Result<Builder, CompileError> 
         let setter_fn = field.ident.as_ref().map(|ident| format_ident!("{}", ident));
         let field_ident = &field.ident;
         let field_type = &field.ty;
-        let indices = (0..count).map(|idx| Index::from(idx));
+        let indices = (0..count).map(Index::from);
 
         let setter_tokens = quote! {
 
          impl #original_impl_generics #previous_builder_type #original_where_clause {
+            #[must_use]
             pub fn #setter_fn (self, #field_ident : #field_type) -> #next_builder_type {
                 let mut state = self.state;
                 #builder_ident {
@@ -154,39 +166,39 @@ pub fn make_builder(input: &StructDeriveInput) -> Result<Builder, CompileError> 
         let field_names = fields
             .iter()
             .map(|f| f.ident.as_ref().expect("struct fields must be named"));
-        let field_names_again = field_names.clone();
+        // let field_names_again = field_names.clone();
+        let indices = (0..field_names.len()).map(Index::from);
         quote! {
             {
-                // destructure the state into the fields
-                let ( #(#field_names),*  ) = self.state;
                 #original_struct_ident {
-                    #(#field_names_again),*
+                    #(#field_names : self.state. #indices),*
                 }
             }
         }
     };
 
-    let builder_tokens;
+    // the identifier we use for the instance of the finished struct inside the builder
+    // before validation and passing it outside
+    let finished_ident = format_ident!("{}", FINISHED_VALUE_IDENT);
+
     let has_validators = struct_validate_attribute.is_some()
         || field_validate_attributes.iter().any(|val| val.is_some());
-    if !has_validators {
+    let builder_tokens = if !has_validators {
         // this is the simple case: if no validation is performed, we just return
         // the struct itself
-        builder_tokens = quote! {
+        quote! {
              impl #original_impl_generics #final_builder #original_where_clause {
-                fn build(self) -> #original_struct_ident #original_ty_generics {
+                pub fn build(self) -> #original_struct_ident #original_ty_generics {
                     // Safety: this is safe because we know all fields have been
                     // initialized at this point.
-                    let finished = #finished_struct_expression;
-                    finished
+                    let #finished_ident = #finished_struct_expression;
+                    #finished_ident
                 }
              }
-        };
+        }
     } else {
         // in case we have validators, we return an Optional that only contains
         // the value if all validators pass successfully.
-
-        let finished_ident = quote! { finished };
 
         // the validator logic to be pasted inside the build function
         let field_validator_logic = fields
@@ -232,23 +244,24 @@ pub fn make_builder(input: &StructDeriveInput) -> Result<Builder, CompileError> 
         let struct_validator_logic = struct_validate_attribute.map(|validator| {
             let validator_expression = validator.expression();
             let span = validator_expression.span();
+
             quote_spanned! {span=>
-                let is_validated : bool = __is_valid(& #finished_ident,#validator_expression);
+                let is_validated : bool = __is_valid(& #finished_ident, #validator_expression);
                 if !is_validated {
                     return None;
                 }
             }
         });
 
-        builder_tokens = quote! {
+        quote! {
              impl #original_impl_generics #final_builder #original_where_clause {
                  pub fn build(self) -> ::core::option::Option<#original_struct_ident #original_ty_generics> {
                      // this function helps us with making sure the arguments
                      // of the closures get deduced correctly
                      // it is used above.
                      #[inline(always)]
-                     fn __is_valid<__T,__F>(val: &__T, func: __F) -> bool
-                     where for<'__life> __F: FnOnce(&__T) -> bool {
+                     fn __is_valid<__TType:?Sized,__FType>(val: &__TType, func: __FType) -> bool
+                     where for<'__life> __FType: FnOnce(&__TType) -> bool {
                          (func)(val)
                      }
                      // Safety: this is safe because we know all fields have been
@@ -263,8 +276,8 @@ pub fn make_builder(input: &StructDeriveInput) -> Result<Builder, CompileError> 
                      Some(#finished_ident)
                  }
              }
-        };
-    }
+        }
+    };
 
     let tokens = quote! {
 
@@ -274,6 +287,7 @@ pub fn make_builder(input: &StructDeriveInput) -> Result<Builder, CompileError> 
         // the actual FooBuilder data structures and logic are namespaced in a
         // module so that no internal state can leak out
         #[allow(non_snake_case)]
+        // #[doc(hidden)]
         #builder_vis mod #builder_mod_ident {
             use super::*;
             #builder_struct_tokens

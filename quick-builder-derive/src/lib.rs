@@ -21,7 +21,7 @@ macro_rules! try2 {
     };
 }
 
-#[proc_macro_derive(QuickBuilder, attributes(validate))]
+#[proc_macro_derive(QuickBuilder, attributes(invariant))]
 pub fn quick_builder(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input: StructDeriveInput = try2!(parse_macro_input!(input as DeriveInput).try_into());
 

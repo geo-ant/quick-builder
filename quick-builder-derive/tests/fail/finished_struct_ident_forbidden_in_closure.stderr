@@ -1,0 +1,5 @@
+error: identifier __finished_instance is reserved and may not be used in validation closure
+  --> tests/fail/finished_struct_ident_forbidden_in_closure.rs:10:24
+   |
+10 |                let f = __finished_instance;
+   |                        ^^^^^^^^^^^^^^^^^^^
