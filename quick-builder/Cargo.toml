@@ -2,6 +2,15 @@
 name = "quick-builder"
 version = "0.1.0"
 edition = "2021"
+authors = ["geo-ant"]
+license = "MIT"
+homepage = "https://github.com/geo-ant/quick-builder"
+repository = "https://github.com/geo-ant/quick-builder"
+description = "compile-time checked builder generator with run-time invariant enforcement"
+readme = "Readme.md"
+categories = ["rust-patterns","data-structures"]
+keywords = ["builder", "derive", "macro", "validate", "invariant"]
 
 [dependencies]
-quick-builder-derive = {path="../quick-builder-derive"}
+# quick-builder-derive = {path="../quick-builder-derive"}
+quick-builder-derive = "0.1.0"
