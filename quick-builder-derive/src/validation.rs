@@ -5,13 +5,13 @@
 //! `&Foo` where `Foo` is the structure for which we created the builder.
 use proc_macro2::Span;
 use quote::ToTokens;
-use syn::{spanned::Spanned, Attribute, ExprClosure, Meta, Path};
+use syn::{spanned::Spanned, visit::Visit, Attribute, ExprClosure, Meta, Path};
 
 const INVARIANT_ATTR: &str = "invariant";
 
-use crate::error::CompileError;
+use crate::{builder::FINISHED_VALUE_IDENT, error::CompileError};
 
-#[derive(Debug)]
+// #[derive(Debug)]
 /// the invariant-attribute:
 /// the struct itself can have 0 or 1 of these attributes and each field
 /// can have 0 or one of these attributes.
@@ -94,7 +94,7 @@ impl InvariantAttribute {
 }
 
 /// the expression inside the braces of the #[invariant(...)] attribute
-#[derive(Debug)]
+// #[derive(Debug)]
 enum InvariantExpression {
     /// a closure is defined
     /// (there are some aspects that we can verify, but not all)
@@ -167,6 +167,7 @@ impl TryFrom<&Meta> for InvariantExpression {
                             "validation closure must have exactly one argument",
                         ))
                     } else {
+                        check_closure(&closure)?;
                         Ok(Self::Closure(closure))
                     }
                 } else {
@@ -180,6 +181,55 @@ impl TryFrom<&Meta> for InvariantExpression {
                 value,
                 format!("attribute must have form #[{INVARIANT_ATTR}(expression)], where expression is a function name or closure"),
             )),
+        }
+    }
+}
+
+/// a helper function that makes sure that the closure does not use
+/// self or the identifier that we use for the finished instance in the builder
+/// in its body.
+fn check_closure(closure: &ExprClosure) -> Result<(), CompileError> {
+    let mut checker = ClosureCheckVisitor::default();
+    checker.visit_expr(&closure.body);
+    checker.check()
+}
+
+struct ClosureCheckVisitor {
+    state: Result<(), CompileError>,
+}
+
+impl Default for ClosureCheckVisitor {
+    fn default() -> Self {
+        Self { state: Ok(()) }
+    }
+}
+
+impl ClosureCheckVisitor {
+    /// check if everything went well after visiting
+    fn check(self) -> Result<(), CompileError> {
+        self.state
+    }
+}
+
+impl<'ast> Visit<'ast> for ClosureCheckVisitor {
+    fn visit_expr_path(&mut self, node: &'ast syn::ExprPath) {
+        if node.qself.is_none() && node.path.is_ident("self") {
+            self.state = Err(CompileError::new_spanned(
+                &node.path,
+                "self keyword not allowed in validation closure",
+            ));
+        }
+
+        // this identifier is also forbidden in closures, because it refers
+        // to the finished value of the structure inside the builder
+        if node.qself.is_none() && node.path.is_ident(FINISHED_VALUE_IDENT) {
+            self.state = Err(CompileError::new_spanned(
+                &node.path,
+                format!(
+                    "identifier {} is reserved and may not be used in validation closure",
+                    FINISHED_VALUE_IDENT
+                ),
+            ));
         }
     }
 }

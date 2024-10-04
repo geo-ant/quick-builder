@@ -6,6 +6,11 @@ use syn::{spanned::Spanned, Index};
 
 mod special_generics;
 
+/// the identifier for the finished value of the structure to build inside the
+/// builder method. We have a global constant because we want to verify that
+/// it does not get used in closures.
+pub const FINISHED_VALUE_IDENT: &str = "__finished_instance";
+
 /// the builder struct and its impl blocks
 pub struct Builder {
     /// the tokens for the struct and the implementation
@@ -172,6 +177,10 @@ pub fn make_builder(input: &StructDeriveInput) -> Result<Builder, CompileError> 
         }
     };
 
+    // the identifier we use for the instance of the finished struct inside the builder
+    // before validation and passing it outside
+    let finished_ident = format_ident!("{}", FINISHED_VALUE_IDENT);
+
     let builder_tokens;
     let has_validators = struct_validate_attribute.is_some()
         || field_validate_attributes.iter().any(|val| val.is_some());
@@ -183,16 +192,14 @@ pub fn make_builder(input: &StructDeriveInput) -> Result<Builder, CompileError> 
                 pub fn build(self) -> #original_struct_ident #original_ty_generics {
                     // Safety: this is safe because we know all fields have been
                     // initialized at this point.
-                    let finished = #finished_struct_expression;
-                    finished
+                    let #finished_ident = #finished_struct_expression;
+                    #finished_ident
                 }
              }
         };
     } else {
         // in case we have validators, we return an Optional that only contains
         // the value if all validators pass successfully.
-
-        let finished_ident = quote! { finished };
 
         // the validator logic to be pasted inside the build function
         let field_validator_logic = fields
@@ -238,6 +245,7 @@ pub fn make_builder(input: &StructDeriveInput) -> Result<Builder, CompileError> 
         let struct_validator_logic = struct_validate_attribute.map(|validator| {
             let validator_expression = validator.expression();
             let span = validator_expression.span();
+
             quote_spanned! {span=>
                 let is_validated : bool = __is_valid(& #finished_ident, #validator_expression);
                 if !is_validated {
@@ -253,8 +261,8 @@ pub fn make_builder(input: &StructDeriveInput) -> Result<Builder, CompileError> 
                      // of the closures get deduced correctly
                      // it is used above.
                      #[inline(always)]
-                     fn __is_valid<__T:?Sized,__F>(val: &__T, func: __F) -> bool
-                     where for<'__life> __F: FnOnce(&__T) -> bool {
+                     fn __is_valid<__TType:?Sized,__FType>(val: &__TType, func: __FType) -> bool
+                     where for<'__life> __FType: FnOnce(&__TType) -> bool {
                          (func)(val)
                      }
                      // Safety: this is safe because we know all fields have been
