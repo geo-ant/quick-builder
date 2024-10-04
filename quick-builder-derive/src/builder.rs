@@ -133,7 +133,7 @@ pub fn make_builder(input: &StructDeriveInput) -> Result<Builder, CompileError> 
         let setter_fn = field.ident.as_ref().map(|ident| format_ident!("{}", ident));
         let field_ident = &field.ident;
         let field_type = &field.ty;
-        let indices = (0..count).map(|idx| Index::from(idx));
+        let indices = (0..count).map(Index::from);
 
         let setter_tokens = quote! {
 
@@ -167,7 +167,7 @@ pub fn make_builder(input: &StructDeriveInput) -> Result<Builder, CompileError> 
             .iter()
             .map(|f| f.ident.as_ref().expect("struct fields must be named"));
         // let field_names_again = field_names.clone();
-        let indices = (0..field_names.len()).map(|idx| Index::from(idx));
+        let indices = (0..field_names.len()).map(Index::from);
         quote! {
             {
                 #original_struct_ident {
@@ -181,13 +181,12 @@ pub fn make_builder(input: &StructDeriveInput) -> Result<Builder, CompileError> 
     // before validation and passing it outside
     let finished_ident = format_ident!("{}", FINISHED_VALUE_IDENT);
 
-    let builder_tokens;
     let has_validators = struct_validate_attribute.is_some()
         || field_validate_attributes.iter().any(|val| val.is_some());
-    if !has_validators {
+    let builder_tokens = if !has_validators {
         // this is the simple case: if no validation is performed, we just return
         // the struct itself
-        builder_tokens = quote! {
+        quote! {
              impl #original_impl_generics #final_builder #original_where_clause {
                 pub fn build(self) -> #original_struct_ident #original_ty_generics {
                     // Safety: this is safe because we know all fields have been
@@ -196,7 +195,7 @@ pub fn make_builder(input: &StructDeriveInput) -> Result<Builder, CompileError> 
                     #finished_ident
                 }
              }
-        };
+        }
     } else {
         // in case we have validators, we return an Optional that only contains
         // the value if all validators pass successfully.
@@ -254,7 +253,7 @@ pub fn make_builder(input: &StructDeriveInput) -> Result<Builder, CompileError> 
             }
         });
 
-        builder_tokens = quote! {
+        quote! {
              impl #original_impl_generics #final_builder #original_where_clause {
                  pub fn build(self) -> ::core::option::Option<#original_struct_ident #original_ty_generics> {
                      // this function helps us with making sure the arguments
@@ -277,8 +276,8 @@ pub fn make_builder(input: &StructDeriveInput) -> Result<Builder, CompileError> 
                      Some(#finished_ident)
                  }
              }
-        };
-    }
+        }
+    };
 
     let tokens = quote! {
 

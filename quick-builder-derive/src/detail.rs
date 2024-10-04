@@ -14,8 +14,7 @@ pub struct StructDeriveInput {
     pub data: DataStruct,
 }
 
-const EXPECTED_STRUCT: &'static str =
-    "Expected struct: QuickBuilder can only be derived on structs";
+const EXPECTED_STRUCT_ERROR: &str = "Expected struct: QuickBuilder can only be derived on structs";
 
 /// get an instance from the derive input. If this is not a struct, then
 /// returns an error.
@@ -31,8 +30,14 @@ impl TryFrom<DeriveInput> for StructDeriveInput {
                 generics: input.generics,
                 data,
             }),
-            Data::Enum(data) => Err(CompileError::new_spanned(data.enum_token, EXPECTED_STRUCT)),
-            Data::Union(data) => Err(CompileError::new_spanned(data.union_token, EXPECTED_STRUCT)),
+            Data::Enum(data) => Err(CompileError::new_spanned(
+                data.enum_token,
+                EXPECTED_STRUCT_ERROR,
+            )),
+            Data::Union(data) => Err(CompileError::new_spanned(
+                data.union_token,
+                EXPECTED_STRUCT_ERROR,
+            )),
         }
     }
 }

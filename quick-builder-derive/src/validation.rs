@@ -33,7 +33,7 @@ pub struct InvariantAttribute {
 impl InvariantAttribute {
     /// get the expression for validation as tokens. This is just the function name
     /// or the code of the closure inside the attribute braces. No additional magic has been performed.
-    pub fn expression<'a>(&'a self) -> impl ToTokens + 'a {
+    pub fn expression(&self) -> impl ToTokens + '_ {
         &self.expression
     }
 
@@ -62,15 +62,15 @@ impl InvariantAttribute {
         // return an error if one was encountered, also return an error when more
         // than one attribute exists.
         let result: Result<Option<&Attribute>, CompileError> =
-            attributes.iter().fold(Ok(None), |init, curr| match init {
-                Ok(None) => {
+            attributes.iter().try_fold(None, |init, curr| match init {
+                None => {
                     if is_invariant_attribute(curr) {
                         Ok(Some(curr))
                     } else {
                         Ok(None)
                     }
                 }
-                Ok(Some(previous)) => {
+                Some(previous) => {
                     if is_invariant_attribute(curr) {
                         Err(CompileError::new_spanned(
                             curr,
@@ -80,7 +80,6 @@ impl InvariantAttribute {
                         Ok(Some(previous))
                     }
                 }
-                Err(err) => Err(err),
             });
         let maybe_invariant_attr = result?;
         let Some(invariant_attr) = maybe_invariant_attr else {
@@ -136,7 +135,7 @@ impl TryFrom<&Meta> for InvariantExpression {
             )),
             Meta::List(list) => {
                 // first try parsing this as a path
-                if let Some(path) = syn::parse::<Path>(list.tokens.clone().into()).ok() {
+                if let Ok(path) = syn::parse::<Path>(list.tokens.clone().into()) {
                     if !path.segments.is_empty() {
                         return Ok(Self::Path(path));
                     } else {
@@ -147,23 +146,23 @@ impl TryFrom<&Meta> for InvariantExpression {
                     }
                 }
                 // otherwise this must be a closure
-                if let Some(closure) = syn::parse::<ExprClosure>(list.tokens.clone().into()).ok() {
+                if let Ok(closure) = syn::parse::<ExprClosure>(list.tokens.clone().into()) {
                     // we can do some error checks for better error messages.
                     // We have no actual type information but we can make sure that
                     // the closure is a single-argument closure that is not async
                     if closure.asyncness.is_some() {
                         Err(CompileError::new_spanned(
-                            &closure.asyncness,
+                           closure.asyncness,
                             "async in validation closure not allowed",
                         ))
                     } else if closure.capture.is_some() {
                         Err(CompileError::new_spanned(
-                            &closure.capture,
+                            closure.capture,
                             "move capture in validation closure not allowed",
                         ))
                     } else if closure.inputs.len() != 1 {
                         Err(CompileError::new_spanned(
-                            &closure,
+                            closure,
                             "validation closure must have exactly one argument",
                         ))
                     } else {
