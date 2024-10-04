@@ -8,16 +8,16 @@
 
 This crate offers a simple, but powerful, compile-time builder pattern generator.
 The philosophy is to verify as much as possible at compile-time, while also
-providing as straightforward way to enforce runtime invariants.
+providing a straightforward way to enforce run-time invariants.
 
-## When should you try QuickBuilder?
+## When Should You Try QuickBuilder?
 
 Give QuickBuilder a shot if you want to derive a builder for your struct,
 that
 
-* makes it a **compile error** if you forgot to set a field _and_
-* allows you to **specify runtime invariants** for your struct that
-  are enforced at runtime _and_
+* makes it a **compile error** if you forget to set a field _and_
+* allows you to **specify run-time invariants** for your struct that
+  are enforced at run-time _and_
 * you can live with the more ascetic interface that the builder provides,
   see the sections on limitations and alternatives.
 
@@ -55,16 +55,16 @@ all you ever need to do, check out the [bon](https://docs.rs/bon/latest/bon/) or
 [typed-builder](https://crates.io/crates/typed-builder) crates. Those offer,
 among other things, more exhaustive support for idioms like optional and
 default parameters, as well as great ergonomics. QuickBuilder shines when
-you also need to enforce runtime invariants about your data structure.
+you additionally need to enforce run-time invariants about your data structure.
 
-## Enforcing Runtime Invariants
+## Enforcing Run-Time Invariants
 
 In the example above we might want to enforce a couple of invariants
-of the data structure that we can only check at runtime. The following 
+about the data structure which we can only check at run-time. The following 
 example shows, how we can use QuickBuilder to enforce that...
 
 1. ...the width of the image is greater 0 _and_
-2. the height of the image is an even number greate 0 _and_
+2. the height of the image is an even number greater 0 _and_
 3. the product of width and height is equal to the length of the given slice.
 
 ```rust
@@ -99,7 +99,7 @@ fn main() {
 ```
 
 One (or zero) `#[invariant(...)]` attributes can be applied to each field or
-to the outer struct itself. The attributes take a closure or function name to check
+to the struct itself. The attributes take a closure or function name to check
 if the invariant holds. The function (or closure) must take its
 argument by reference and return a `bool`, where `true` means that the invariant
 holds and `false` means it's violated.
@@ -126,7 +126,7 @@ where upheld during construction.
 
 ## Protecting Field Access: Getters
 
-If have invariants in your data, you probably want to provide getters
+If care about enforcing invariants about your data, you probably want to provide getters
 to your fields rather than making them publicly accessible. In that case, you'll
 be happy to hear that this crate works seamlessly with the popular
 [getset](https://crates.io/crates/getset) and [derive-getters](https://crates.io/crates/derive-getters)
