@@ -119,8 +119,18 @@ where upheld during construction.
 * **Default/Optional Arguments**: there is no support for default or optional
   arguments (yet).
 * **Weird Generics**: The builder structure contains a bit of generic magic
-  and is not meant for passing around. Additionally it only allows the consuming
-  builder pattern.
+  and is not meant for passing around.
+* **Consuming Builder Pattern Only**: The builder uses the consuming pattern always.
+  If you need to set fields conditionally, check out the [apply_if](https://crates.io/crates/apply_if)
+  crate.
+
+## Protecting Field Access: Getters
+
+If have invariants in your data, you probably want to provide getters
+to your fields rather than making them publicly accessible. In that case, you'll
+be happy to hear that this crate works seamlessly with the popular
+[getset](https://crates.io/crates/getset) and [derive-getters](https://crates.io/crates/derive-getters)
+crates. Those offer derive macros for getters and setters.
 
 ## Alternatives
 
