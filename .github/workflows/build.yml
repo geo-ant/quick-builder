@@ -1,0 +1,19 @@
+name: build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Runs the workflow at 00:00 on the first day of every month
+    - cron: '0 0 1 * *'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+    run:  RUSTFLAGS="-D warnings" cargo check --workspace --all-targets --tests
