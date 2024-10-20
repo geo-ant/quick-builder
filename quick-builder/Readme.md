@@ -135,10 +135,5 @@ crates. Those offer derive macros for getters and setters.
 ## Alternatives
 
 There is a great [overview of builder crates](https://elastio.github.io/bon/guide/alternatives)
-by the `bon` team. Of those, to my knowledge, only the [derive_builder](https://docs.rs/derive_builder/latest/derive_builder/)
-crate provides a way to enforce run-time invariants. However, that crate
-makes it a run-time error if not all required fields were set.
-Some might argue that if we have run-time errors anyways (due to the invariants)
-we might not care about that. But my philosophy is that I'd rather validate as 
-much as I can at compile-time and let run-time errors be run-time errors.
-But that's just me.
+by the `bon` team. Of the compile-time builders in this list, to my knowledge, only the `bon`
+crate provides a way to enforce run-time invariants. 
