@@ -4,6 +4,7 @@
 ![tests](https://github.com/geo-ant/quick-builder/actions/workflows/tests.yml/badge.svg?branch=main)
 ![lints](https://github.com/geo-ant/quick-builder/actions/workflows/lints.yml/badge.svg?branch=main)
 [![crates](https://img.shields.io/crates/v/quick-builder)](https://crates.io/crates/quick-builder)
+![maintenance-status](https://img.shields.io/badge/maintenance-deprecated-red.svg)
 
 ## &#9888; Deprecation Notice
 
