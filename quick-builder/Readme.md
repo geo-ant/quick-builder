@@ -4,13 +4,19 @@
 ![tests](https://github.com/geo-ant/quick-builder/actions/workflows/tests.yml/badge.svg?branch=main)
 ![lints](https://github.com/geo-ant/quick-builder/actions/workflows/lints.yml/badge.svg?branch=main)
 [![crates](https://img.shields.io/crates/v/quick-builder)](https://crates.io/crates/quick-builder)
-![maintenance-status](https://img.shields.io/badge/maintenance-actively--developed-brightgreen.svg)
+![maintenance-status](https://img.shields.io/badge/maintenance-deprecated-red.svg)
+
+## &#9888; Deprecation Notice
+
+This crate is deprecated, since its only idea was to provide a simple way to get
+fallible builders, a use case that is better served by the 
+[bon](http://bon-rs.com/guide/patterns/fallible-builders) crate.
+
+## When Should You Try QuickBuilder?
 
 This crate offers a simple, but powerful, compile-time builder pattern generator.
 The philosophy is to verify as much as possible at compile-time, while also
 providing a straightforward way to enforce run-time invariants.
-
-## When Should You Try QuickBuilder?
 
 Give QuickBuilder a shot if you want to derive a builder for your struct,
 that
