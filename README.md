@@ -7,9 +7,8 @@
 
 ## &#9888; Deprecation Notice
 
-This crate is deprecated, since its only idea was to provide a simple way to get
-fallible builders, a use case that is better served by the 
-[bon](http://bon-rs.com/guide/patterns/fallible-builders) crate.
+This crate is deprecated, since its use case of fallible builders is
+better served [by the bon crate](http://bon-rs.com/guide/patterns/fallible-builders).
 
 This is the workspace repository for the quick-builder and quick-builder-derive
 crates. Please refer to the [documentation of the quick-builder crate](quick-builder/Readme.md).

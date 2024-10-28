@@ -8,9 +8,8 @@
 
 ## &#9888; Deprecation Notice
 
-This crate is deprecated, since its only idea was to provide a simple way to get
-fallible builders, a use case that is better served by the 
-[bon](http://bon-rs.com/guide/patterns/fallible-builders) crate.
+This crate is deprecated, since its use case of fallible builders is
+better served [by the bon crate](http://bon-rs.com/guide/patterns/fallible-builders).
 
 ## When Should You Try QuickBuilder?
 
